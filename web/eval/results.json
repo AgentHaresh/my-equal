@@ -1,0 +1,459 @@
+{
+ "ranAt": "2026-11-21T09:42:32.381Z",
+ "model": "gpt-6.1-terra",
+ "note": "Second run of the same messages; the first run also scored 60 of 60. No prompt was changed between the two runs. One prompt rule (errands for family) was changed earlier in the day because of the BP medicine message, which is marked as seen.",
+ "unseen": {
+  "right": 46,
+  "total": 46
+ },
+ "gate": {
+  "speakRight": 20,
+  "speakTotal": 20,
+  "quietRight": 20,
+  "quietTotal": 20,
+  "outcomes": [
+   {
+    "text": "My car broke down near Gachibowli and I need it fixed today, client meeting at 4",
+    "expect": "speak",
+    "seen": true,
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a mechanic near Gachibowli?"
+   },
+   {
+    "text": "Bike puncture aipoyindi, office ki late avutunna. Ikkada puncture shop ekkada undo teliyadu",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a puncture shop nearby?"
+   },
+   {
+    "text": "AC is not cooling at all and it's 38 degrees, I need someone to come and look at it today",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find an AC technician who can come today?"
+   },
+   {
+    "text": "The kitchen tap is leaking all over the floor, I need a plumber right now",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find an available plumber nearby?"
+   },
+   {
+    "text": "Nanna ki BP medicine aipoyindi anta, repu konali. Naaku time ledu",
+    "expect": "speak",
+    "seen": true,
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help find a pharmacy that can deliver your father's BP medicine?"
+   },
+   {
+    "text": "I have a terrible toothache since morning, need to see a dentist today itself",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help you find a dentist available today?"
+   },
+   {
+    "text": "Yaar mera laptop on hi nahi ho raha, kal presentation hai, aaj hi repair karwana hai",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a laptop repair shop open today?"
+   },
+   {
+    "text": "Power went out only in our flat, the main switch keeps tripping. Need an electrician this evening",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help find an electrician for this evening?"
+   },
+   {
+    "text": "I need a cab to the airport at 4 am tomorrow and nothing is showing up for pre-booking",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help find an airport cab for 4 a.m.?"
+   },
+   {
+    "text": "Geyser is not working and guests are coming tomorrow morning, have to get it repaired today",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help find an electrician who can repair it today?"
+   },
+   {
+    "text": "My phone screen cracked badly, I can't even see who is calling. Have to get it replaced today",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help find a phone repair shop that can replace the screen today?"
+   },
+   {
+    "text": "Washing machine motham water tho nindipoyindi, drain avvatledu. Evarinaina pilavali",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help find a washing machine repair technician?"
+   },
+   {
+    "text": "Mummy ka sugar test karwana hai kal subah, ghar pe sample lene wala koi chahiye",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a lab that can collect Mummy's sample at home tomorrow morning?"
+   },
+   {
+    "text": "Flat tyre on ORR and I don't have a spare, stuck here with the hazards on",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find roadside tyre assistance near you?"
+   },
+   {
+    "text": "The fridge stopped working last night and everything inside is going bad, I need it fixed today",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to help you find a fridge repair technician today?"
+   },
+   {
+    "text": "I need to get my passport photos taken and printed before 5 today for the visa appointment",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a nearby place that can take and print your passport photos before 5?"
+   },
+   {
+    "text": "Water tanker raaledu, intlo water asalu ledu. Ippude tanker book cheyali",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a water tanker you can book right away?"
+   },
+   {
+    "text": "My specs broke in half and I can't work without them, need a new pair made by tomorrow",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find an optician who can make a new pair by tomorrow?"
+   },
+   {
+    "text": "The car battery is dead again and I have to leave for Vijayawada in two hours",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a nearby mechanic who can help with the battery?"
+   },
+   {
+    "text": "Locked myself out of the flat, keys are inside. Need a locksmith now",
+    "expect": "speak",
+    "got": "speak",
+    "ok": true,
+    "detail": "Want me to find a nearby locksmith?"
+   },
+   {
+    "text": "Bro worst day ever, everything is going wrong today",
+    "expect": "quiet",
+    "seen": true,
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "I am so tired of this job, honestly don't know why I keep doing it",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "My cousin's bike got stolen last year, crazy story",
+    "expect": "quiet",
+    "seen": true,
+    "got": "quiet",
+    "ok": true,
+    "detail": "The theft happened last year and concerns the user's cousin."
+   },
+   {
+    "text": "Remember when my car broke down on the way to Goa? That was hilarious",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The breakdown happened in the past and is being recalled as a funny memory."
+   },
+   {
+    "text": "Ravi's car broke down again, poor guy, he is having a rough week",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The car problem is Ravi's to handle, not the user's."
+   },
+   {
+    "text": "The AC stopped working yesterday but the technician already came and fixed it",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The technician has already fixed the AC."
+   },
+   {
+    "text": "Thatha passed away this morning. I don't know what to say",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "Had a huge fight with Priya, we are not talking right now",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "If my laptop ever dies I am finished, all my work is on it",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The laptop failure is hypothetical."
+   },
+   {
+    "text": "Movie chala bagundi ra, nuvvu kuda chudu",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "Aaj bahut thak gaya yaar, bas sona hai",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "I failed the interview. I really thought this one would work out",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "My tap was leaking but I tightened it myself, all good now",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The user has already fixed the leak."
+   },
+   {
+    "text": "Happy birthday! Have a great year ahead",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "Traffic is insane today, took me two hours to get home",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The user is venting about a trip that has already ended."
+   },
+   {
+    "text": "Amma is in the hospital, the doctors are with her now. I'm just scared",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "Doctors are already attending to Amma, and the user is expressing fear."
+   },
+   {
+    "text": "Don't worry about the plumber, my landlord is sending his guy tomorrow",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The landlord has already arranged a plumber."
+   },
+   {
+    "text": "What time are we meeting on Saturday?",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "Naaku ee roju asalu mood ledu, emi cheyalani ledu",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "no practical need seen"
+   },
+   {
+    "text": "I think I'll buy a new phone sometime next year, this one is getting old",
+    "expect": "quiet",
+    "got": "quiet",
+    "ok": true,
+    "detail": "The purchase is only a tentative plan for next year."
+   }
+  ]
+ },
+ "scam": {
+  "caught": 10,
+  "scamTotal": 10,
+  "leftAlone": 10,
+  "genuineTotal": 10,
+  "outcomes": [
+   {
+    "text": "This is Inspector Sharma from CBI Mumbai. A parcel in your name contains illegal drugs. You are under digital arrest. Do not disconnect or tell anyone. Transfer Rs 50,000 to the RBI safe account for verification.",
+    "expect": "scam",
+    "seen": true,
+    "got": "scam",
+    "ok": true,
+    "detail": "fake police or arrest threat: The caller threatens arrest, demands secrecy and asks you to transfer money to a supposed safe account."
+   },
+   {
+    "text": "Dear customer aapka SBI account KYC expire ho gaya hai. Aaj raat tak account block ho jayega. Abhi is link par click karke update karein: http://sbi-kyc-update.in",
+    "expect": "scam",
+    "seen": true,
+    "got": "scam",
+    "ok": true,
+    "detail": "fake account or KYC block: The message threatens to block your SBI account and asks you to update KYC through a suspicious link."
+   },
+   {
+    "text": "Nanna, nenu ra. Idi naa kotha number. Urgent ga 20,000 kavali, hospital lo unna. Ee number ki GPay cheyyi, evvariki cheppaku.",
+    "expect": "scam",
+    "seen": true,
+    "got": "scam",
+    "ok": true,
+    "detail": "pretending to be a relative: The sender claims to be your child on a new number and urgently asks for money while telling you not to tell anyone."
+   },
+   {
+    "text": "Congratulations! You have been selected for a work-from-home job. Earn Rs 5,000 daily by liking videos. Pay Rs 999 registration fee to start.",
+    "expect": "scam",
+    "seen": true,
+    "got": "scam",
+    "ok": true,
+    "detail": "fake job or paid task: The message promises easy money for liking videos but asks you to pay a fee first."
+   },
+   {
+    "text": "Your electricity connection will be disconnected tonight at 9:30 PM as your bill is not updated. Call officer 98765xxxxx immediately and share the OTP.",
+    "expect": "scam",
+    "seen": true,
+    "got": "scam",
+    "ok": true,
+    "detail": "asking for a code or access: The message threatens to disconnect your electricity and asks you to share an OTP."
+   },
+   {
+    "text": "FedEx: Your parcel is held at customs. Pay Rs 2,350 clearance fee within 2 hours or it will be returned. Pay here: http://fedex-clearance.co",
+    "expect": "scam",
+    "got": "scam",
+    "ok": true,
+    "detail": "fake delivery or customs fee: The message demands an urgent customs payment through a suspicious link to release a parcel."
+   },
+   {
+    "text": "You have won Rs 25,00,000 in the KBC lucky draw! To claim, send Rs 12,000 processing fee and your Aadhaar and bank details on WhatsApp to this number.",
+    "expect": "scam",
+    "got": "scam",
+    "ok": true,
+    "detail": "fake prize or refund: The message promises a large prize but asks you to pay a fee and share personal and bank details first."
+   },
+   {
+    "text": "Sir main TRAI se bol raha hoon. Aapka number 2 ghante mein band ho jayega kyunki ispe illegal activity hui hai. Police verification ke liye abhi video call par aaiye aur kisi ko mat bataiye.",
+    "expect": "scam",
+    "got": "scam",
+    "ok": true,
+    "detail": "fake police or arrest threat: The caller claims to be from TRAI, threatens to block your number and demands a secret police video call."
+   },
+   {
+    "text": "Hi, I'm from your bank's technical team. We detected a problem with your card. Please install the AnyDesk app and share the 9 digit code so we can fix it now.",
+    "expect": "scam",
+    "got": "scam",
+    "ok": true,
+    "detail": "asking for a code or access: The caller claims to be from your bank and asks for an AnyDesk code to access your device."
+   },
+   {
+    "text": "Guaranteed 40% monthly returns on crypto trading. Our expert group has limited seats. Deposit Rs 10,000 today to join, withdrawal anytime.",
+    "expect": "scam",
+    "got": "scam",
+    "ok": true,
+    "detail": "fake loan or investment: The message promises unusually high guaranteed returns and asks you to deposit money quickly."
+   },
+   {
+    "text": "Your Amazon order has been shipped and will arrive tomorrow by 9 PM.",
+    "expect": "genuine",
+    "seen": true,
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Hi, this is Dr. Rao's clinic. Your appointment is confirmed for Monday 10 AM.",
+    "expect": "genuine",
+    "seen": true,
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Rs 2,500.00 debited from A/c XX1234 on 21-Nov-26. Avl bal Rs 18,200. -HDFC Bank",
+    "expect": "genuine",
+    "seen": true,
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Hello, is this Suresh? Sorry, wrong number.",
+    "expect": "genuine",
+    "seen": true,
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Sir mee bike service aipoyindi, repu vachi teesukondi. - Sri Sai Motors",
+    "expect": "genuine",
+    "seen": true,
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Hi, I'm the delivery partner for your Swiggy order. I'm at the gate, which block is yours?",
+    "expect": "genuine",
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Reminder: your electricity bill of Rs 1,840 is due on 28 Nov. You can pay on the TGSPDCL app or at any bill counter.",
+    "expect": "genuine",
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Namaste, main aapke bete ke school se bol rahi hoon. Kal parent teacher meeting 11 baje hai.",
+    "expect": "genuine",
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Hi, got your number from Kiran. I'm looking for a 2BHK in Kondapur, he said you are moving out next month?",
+    "expect": "genuine",
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   },
+   {
+    "text": "Your OTP for login is 482913. Do not share this code with anyone. -ICICI Bank",
+    "expect": "genuine",
+    "got": "genuine",
+    "ok": true,
+    "detail": "not flagged"
+   }
+  ]
+ }
+}
