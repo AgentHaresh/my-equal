@@ -14,7 +14,12 @@ Built solo at **Builders 2026** (OpenAI x Equal AI, Hyderabad, 21-22 November 20
 | **Remembers** | Picks up appointments, promises and worries from your chats, including WhatsApp chats you import. |
 | **Acts** | When you tell a friend your car broke down, it privately offers to help. Say yes and it calls three providers by voice, compares their quotes, and books only after you approve. |
 | **Keeps you close** | Tells you when you have not spoken to someone in weeks, and what to ask them about. |
-| **Keeps your family safe** | Flags scam messages from unknown numbers, and alerts you when one reaches a family member. |
+| **Reminds** | Your own plans and promises ("I'll send the deck by Friday") become reminders with a day and time. |
+| **Answers** | Ask it anything you've forgotten. It answers from your own chats and shows the message it relied on, or says it doesn't know. |
+| **Knows your people** | Works out who each person is to you from the chat, and how often you usually talk, and notices when that rhythm breaks. You can correct it. |
+| **Reads photos** | Photograph a prescription, bill or appointment card and it becomes a dated memory. The photo itself is not kept. |
+| **Takes voice notes** | Speak instead of typing. The note is transcribed, and translated to English for the reader when it's in another language. |
+| **Keeps your family safe** | Flags scam messages from unknown numbers, answers unknown callers on a family member's behalf and refuses scam calls, and alerts you either way. |
 
 It decides when to speak and when to stay quiet, and shows its reason when it stays quiet. Nothing is sent or booked without the user's approval.
 
@@ -38,6 +43,10 @@ Browser ──> Next.js app (one server) ──> OpenAI
               ├─ lib/calls.ts     call-around: opens the call, asks, compares quotes, books
               ├─ lib/voice.ts     speech in and speech out for calls
               ├─ lib/scam.ts      scam check for unknown numbers, family alert
+              ├─ lib/screen.ts    answers unknown callers for a family member
+              ├─ lib/people.ts    who each person is to me, learned from the chat
+              ├─ lib/ask.ts       answers questions from memories and messages
+              ├─ lib/photo.ts     reads a photo into dated memories
               ├─ lib/store.ts     one private space per person; nudges computed in plain code
               ├─ lib/auth.ts      Google sign-in, signed session cookie
               └─ lib/evaluate.ts  the scoreboard
@@ -55,6 +64,7 @@ The rule throughout: **the model interprets, plain code holds state and rules, a
 - **Real:** Google sign-in, person-to-person chat, WhatsApp import, the reading of messages, the voice conversation, the comparison, the scam check.
 - **Simulated:** the providers. A call goes to a web page opened by link or QR code, not to a phone line. In a demo, people in the room play the mechanics.
 - **Simulated:** the protected family member ("Nanna") is a simple phone view, not a second account.
+- **Simulated:** call screening happens inside the app. A caller opens a link and Equal answers; it does not intercept real phone calls.
 - **Sample data:** each new account starts with sample contacts, tagged "sample" in the app.
 
 ## Scoreboard
@@ -105,7 +115,7 @@ TEST_LOGIN_SECRET=localtest SESSION_SECRET=local npx next start -p 3217
 node tests/multiuser-test.mjs http://localhost:3217
 ```
 
-The other suites are `callaround-test.mjs`, `scam-test.mjs` and `voice-test.mjs`.
+The other suites are `callaround-test.mjs`, `scam-test.mjs`, `voice-test.mjs`, `memory-test.mjs`, `protect-test.mjs` and `extras-test.mjs`.
 
 ## Deploying
 

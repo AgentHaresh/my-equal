@@ -1,7 +1,7 @@
-import { contactFor, findUser, save, spaceOf, uid, Message } from "@/lib/store";
+import { findUser, save, spaceOf, uid, Message } from "@/lib/store";
 import { analyse } from "@/lib/butler";
 import { checkScam } from "@/lib/scam";
-import { dueForLearning, learnRelation } from "@/lib/people";
+import { deliver } from "@/lib/deliver";
 import { context, unauthorised } from "@/lib/auth";
 import { snapshot, friendSnapshot } from "@/lib/snapshot";
 
@@ -34,25 +34,6 @@ export async function POST(request: Request) {
   const contact = db.contacts.find((c) => c.id === body?.contactId);
   if (!contact) return Response.json({ error: "No such chat." }, { status: 400 });
 
-  const msg: Message = { id: uid(), contactId: contact.id, from: "me", text, at };
-  db.messages.push(msg);
-  contact.lastContactAt = at;
-
-  // A real person: deliver a copy into their space, where their own Equal reads it for them.
-  const other = contact.userId ? findUser(contact.userId) : undefined;
-  if (other) {
-    const theirs = spaceOf(other.id);
-    const me = contactFor(theirs, user);
-    const copy: Message = { id: uid(), contactId: me.id, from: "them", text, at };
-    theirs.messages.push(copy);
-    me.lastContactAt = at;
-    void analyse(theirs, me, copy).then(() => save()); // does not hold up the sender
-    if (dueForLearning(theirs, me)) void learnRelation(theirs, me).then(() => save());
-    if (dueForLearning(db, contact)) void learnRelation(db, contact).then(() => save());
-  }
-  save(); // the message is stored even if the reading fails
-
-  const error = contact.unknown ? null : await analyse(db, contact, msg);
-  save();
+  const error = await deliver(db, user, contact, text);
   return Response.json(snapshot(db, user, error));
 }

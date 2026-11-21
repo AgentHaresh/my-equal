@@ -216,3 +216,22 @@ export function parseWhatsApp(text: string, myName: string) {
   }
   return out;
 }
+
+/** Ask the model about a picture. Same model and JSON reply as askJson, with an image attached. */
+export async function askVision<T>(system: string, text: string, imageDataUrl: string): Promise<T> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: activeModel(),
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: [{ type: "text", text }, { type: "image_url", image_url: { url: imageDataUrl } }] },
+      ],
+      response_format: { type: "json_object" },
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const data = await res.json();
+  return JSON.parse(data.choices[0].message.content) as T;
+}

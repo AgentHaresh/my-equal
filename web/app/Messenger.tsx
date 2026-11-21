@@ -75,6 +75,10 @@ export default function Messenger({ role }: Props) {
   const [reply, setReply] = useState<(Answer & { question: string }) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
+  const [recording, setRecording] = useState(false);
+  const mic = useRef<MediaStream | null>(null);
+  const recorder = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
 
   const api = useCallback(
     async (url: string, method: string, body?: unknown): Promise<Snapshot & { contactId?: string; imported?: number }> => {
@@ -196,6 +200,90 @@ export default function Messenger({ role }: Props) {
       setQuestion("");
     } finally {
       setAsking(false);
+    }
+  }
+
+  /** Voice note: tap to start, tap again to send. It is transcribed and then treated like a typed message. */
+  async function toggleVoice() {
+    if (recording) return recorder.current?.stop();
+    if (!current) return;
+    try {
+      if (!mic.current) mic.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      return setNotice("The microphone is blocked. Allow it in your browser to send voice notes.");
+    }
+    chunks.current = [];
+    const rec = new MediaRecorder(mic.current);
+    const to = current;
+    rec.ondataavailable = (e) => {
+      if (e.data.size) chunks.current.push(e.data);
+    };
+    rec.onstop = async () => {
+      setRecording(false);
+      setSending(true);
+      busy.current = true;
+      setNotice("Sending your voice note…");
+      try {
+        const type = (rec.mimeType || "audio/webm").split(";")[0];
+        const form = new FormData();
+        form.append("contactId", to);
+        form.append("audio", new Blob(chunks.current, { type }), `note.${type.split("/")[1] ?? "webm"}`);
+        const res = await fetch("/api/voicenote", { method: "POST", body: form });
+        const next = await res.json();
+        if (next.contacts) setSnap(next);
+        setNotice(next.contacts ? (next.error ? `Voice note sent. Equal could not read it: ${next.error}` : null) : next.error ?? "Could not send the voice note.");
+      } catch {
+        setNotice("Could not send the voice note. Check your connection.");
+      } finally {
+        busy.current = false;
+        setSending(false);
+      }
+    };
+    recorder.current = rec;
+    rec.start();
+    setRecording(true);
+    setNotice("Recording… tap the red button to send.");
+  }
+
+  /** Put a draft in the message box, written the way I write. I still edit and send it myself. */
+  async function draftFor(s: Suggestion) {
+    open(s.contactId);
+    setNotice("Drafting something you could say…");
+    const res = await fetch("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId: s.contactId, about: s.detail }) });
+    const d = await res.json();
+    if (d.draft) setDraft(d.draft);
+    setNotice(d.draft ? "A draft is in the box. Edit it and send it yourself." : d.error ?? "Could not write a draft.");
+  }
+
+  async function forget(id: string) {
+    const next = await api("/api/memories", "POST", { id });
+    if (next.contacts) setSnap(next);
+  }
+
+  /** Shrink a photo in the browser before sending it, so uploads are quick on a phone. */
+  async function shrink(file: File): Promise<Blob> {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve) => canvas.toBlob((b) => resolve(b ?? file), "image/jpeg", 0.85));
+  }
+
+  async function addPhoto(file: File) {
+    setNotice("Reading the photo…");
+    try {
+      const form = new FormData();
+      form.append("image", await shrink(file), "photo.jpg");
+      const res = await fetch("/api/photo", { method: "POST", body: form });
+      const next = await res.json();
+      if (next.contacts) setSnap(next);
+      if (next.photo?.error) return setNotice(next.photo.error);
+      if (next.contactId) open(next.contactId);
+      setNotice(`Saved "${next.photo.title}". ${next.photo.added} thing${next.photo.added === 1 ? "" : "s"} to remember.`);
+    } catch {
+      setNotice("Could not read that photo. Please try again.");
     }
   }
 
@@ -334,8 +422,14 @@ export default function Messenger({ role }: Props) {
               return (
                 <div key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
                   <div className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[15px] shadow-sm ${mine ? "bg-equal-sky text-white" : "bg-white"}`}>
+                    {m.voice && (
+                      <span className={`mb-0.5 block text-[10px] font-semibold uppercase tracking-wider ${mine ? "text-white/75" : "text-equal-sky"}`}>
+                        Voice note{m.voice.language ? ` · ${m.voice.language}` : ""}
+                      </span>
+                    )}
                     {m.text}
                     <span className={`ml-2 text-[10px] ${mine ? "text-white/70" : "text-equal-ink/40"}`}>{clock(m.at, now)}</span>
+                    {m.voice?.english && <span className={`mt-1 block border-t pt-1 text-[13px] italic ${mine ? "border-white/25 text-white/85" : "border-blue-100 text-equal-ink/70"}`}>In English: {m.voice.english}</span>}
                   </div>
                   {isMe && m.scam && (
                     <div className="mt-1.5 max-w-[80%] rounded-2xl bg-rose-600 px-4 py-3 text-white shadow">
@@ -383,6 +477,17 @@ export default function Messenger({ role }: Props) {
               disabled={!contact}
               className="min-w-0 flex-1 rounded-full border border-blue-200 bg-white px-4 py-2 outline-none placeholder:text-equal-ink/40 focus:border-equal-sky"
             />
+            {isMe && contact && (
+              <button
+                type="button"
+                onClick={toggleVoice}
+                disabled={sending && !recording}
+                aria-label={recording ? "Stop and send voice note" : "Record a voice note"}
+                className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-semibold disabled:opacity-40 ${recording ? "animate-pulse bg-rose-500 text-white" : "border border-blue-200 text-equal-sky"}`}
+              >
+                {recording ? "Stop" : "Voice"}
+              </button>
+            )}
             <button disabled={sending || !draft.trim() || !contact} className="rounded-full bg-equal-sky px-5 py-2 font-semibold text-white disabled:opacity-40">
               {sending ? "…" : "Send"}
             </button>
@@ -417,6 +522,20 @@ export default function Messenger({ role }: Props) {
                   {asking ? "…" : "Ask"}
                 </button>
               </form>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-full border border-dashed border-white/40 px-3 py-2 text-sm text-white/90 hover:bg-white/10">
+                <span className="font-semibold text-equal-lime">+ Photo to remember</span>
+                <span className="text-xs text-white/60">prescription, bill, invitation</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) addPhoto(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
               {reply && (
                 <div className="rounded-2xl bg-white p-3 text-equal-ink shadow-lg">
                   <div className="text-xs text-equal-ink/60">{reply.question}</div>
@@ -466,10 +585,15 @@ export default function Messenger({ role }: Props) {
                   </div>
                   <div className="mt-1 text-sm font-semibold">{s.title}</div>
                   <div className="text-sm text-white/85">{s.detail}</div>
-                  <div className="mt-2.5 flex gap-2">
+                  <div className="mt-2.5 flex flex-wrap gap-2 whitespace-nowrap">
                     <button onClick={() => answer(s, "accept")} className="rounded-full bg-equal-lime px-3.5 py-1 text-sm font-semibold text-equal-ink hover:brightness-95">
                       {s.type === "guardian" ? "I'll call them" : s.type === "intent" ? "Yes, please" : "Open chat"}
                     </button>
+                    {(s.type === "keep_close" || s.type === "follow_up") && (
+                      <button onClick={() => draftFor(s)} className="rounded-full border border-equal-lime px-3 py-1 text-sm font-medium text-equal-lime hover:bg-white/10">
+                        Draft a message
+                      </button>
+                    )}
                     <button onClick={() => answer(s, "dismiss")} className="rounded-full px-3 py-1 text-sm text-white/85 hover:bg-white/10">
                       Dismiss
                     </button>
@@ -511,6 +635,9 @@ export default function Messenger({ role }: Props) {
                 {memories.length === 0 && <p className="text-sm text-white/70">Nothing yet.</p>}
                 {memories.map((m) => (
                   <div key={m.id} className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm">
+                    <button onClick={() => forget(m.id)} title="Forget this" className="float-right ml-2 rounded-full px-1.5 text-xs text-white/50 hover:bg-white/15 hover:text-white">
+                      Forget
+                    </button>
                     {m.fact}
                     <span className="ml-2 text-xs text-white/60">
                       {m.when ? new Date(m.when).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : m.kind}
@@ -544,6 +671,9 @@ export default function Messenger({ role }: Props) {
 
             <section className="mt-auto space-y-1.5 border-t border-white/20 pt-4 text-xs text-white/70">
               <h2 className={`${label} text-white/70`}>Try the family scam shield</h2>
+              <a href={`/ring?u=${me?.id ?? ""}&c=unknown-nanna`} target="_blank" className="block underline">
+                Call Nanna as a stranger
+              </a>
               <a href={`/friend?u=${me?.id ?? ""}&c=unknown-nanna`} target="_blank" className="block underline">
                 Message Nanna as a stranger
               </a>

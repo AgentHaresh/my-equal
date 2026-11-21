@@ -22,6 +22,7 @@ export type Message = {
   text: string;
   at: string;
   scam?: { pattern: string; reason: string; advice: string }; // set when the scam shield flags it
+  voice?: { language?: string; english?: string }; // set when the message was spoken; "english" is a translation for the reader
 };
 export type Memory = {
   id: string;
@@ -81,6 +82,16 @@ export type Job = {
   bookedCallId: string | null;
   createdAt: string;
 };
+/** A call from an unknown number that Equal answered for a protected family member. */
+export type ScreenCall = {
+  id: string;
+  contactId: string;
+  status: "active" | "done";
+  transcript: { from: "equal" | "caller"; text: string; at: string }[];
+  verdict: "scam" | "genuine" | "unsure" | null;
+  summary: string;
+  createdAt: string;
+};
 export type User = {
   id: string;
   email: string;
@@ -91,6 +102,7 @@ export type User = {
 };
 /** One person's private space: their chats, what Equal remembers for them, and its offers. */
 export type DB = {
+  screens?: ScreenCall[];
   jobs: Job[];
   contacts: Contact[];
   messages: Message[];
@@ -240,6 +252,7 @@ export function resetSamples(space: DB) {
   space.jobs = space.jobs.filter((j) => keep.has(j.contactId));
   space.gateLog = [];
   space.dismissed = [];
+  space.screens = [];
 }
 
 /**
@@ -304,7 +317,7 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
       type: "reminder",
       contactId: c.id,
       title: m.fact,
-      detail: `${day}${time} · from your chat with ${c.name}`,
+      detail: `${day}${time} · ${c.id === "self" ? "from your notes" : `from your chat with ${c.name}`}`,
       status: "new",
       createdAt: m.when,
     });
