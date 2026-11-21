@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   if (!ctx) return unauthorised();
   const body = await request.json().catch(() => null);
   const other = findUser(String(body?.userId ?? ""));
-  if (!other || other.id === ctx.user.id) return Response.json({ error: "No such person." }, { status: 400 });
+  if (!other || other.id === ctx.user.id || Boolean(other.test) !== Boolean(ctx.user.test)) return Response.json({ error: "No such person." }, { status: 400 });
 
   const contact = contactFor(ctx.db, other);
   contactFor(spaceOf(other.id), ctx.user); // so the chat also appears on their side

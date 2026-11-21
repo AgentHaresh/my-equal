@@ -83,6 +83,7 @@ export type User = {
   name: string;
   picture?: string;
   createdAt: string;
+  test?: boolean; // created by the automated tests; never shown to real people
 };
 /** One person's private space: their chats, what Equal remembers for them, and its offers. */
 export type DB = {
@@ -174,7 +175,7 @@ export function findUser(id: string): User | undefined {
   return root().users.find((u) => u.id === id);
 }
 
-export function upsertUser(profile: { email: string; name: string; picture?: string }): User {
+export function upsertUser(profile: { email: string; name: string; picture?: string }, test = false): User {
   const r = root();
   const email = profile.email.trim().toLowerCase();
   let user = r.users.find((u) => u.email === email);
@@ -182,7 +183,7 @@ export function upsertUser(profile: { email: string; name: string; picture?: str
     user.name = profile.name || user.name;
     user.picture = profile.picture ?? user.picture;
   } else {
-    user = { id: uid(), email, name: profile.name || email.split("@")[0], picture: profile.picture, createdAt: new Date().toISOString() };
+    user = { id: uid(), email, name: profile.name || email.split("@")[0], picture: profile.picture, createdAt: new Date().toISOString(), ...(test ? { test: true } : {}) };
     r.users.push(user);
   }
   spaceOf(user.id);

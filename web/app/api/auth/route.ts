@@ -15,6 +15,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   let profile: { email: string; name: string; picture?: string };
+  let test = false;
 
   if (typeof body?.credential === "string") {
     if (!googleClientId()) return Response.json({ error: "Google sign-in is not set up on this server yet." }, { status: 503 });
@@ -25,11 +26,12 @@ export async function POST(request: Request) {
     }
   } else if (process.env.TEST_LOGIN_SECRET && body?.secret === process.env.TEST_LOGIN_SECRET && typeof body?.email === "string") {
     profile = { email: body.email, name: String(body.name ?? "Tester") };
+    test = true;
   } else {
     return Response.json({ error: "Sign in with Google." }, { status: 400 });
   }
 
-  const user = upsertUser(profile);
+  const user = upsertUser(profile, test);
   return Response.json(
     { user: { id: user.id, name: user.name, email: user.email, picture: user.picture } },
     { headers: { "Set-Cookie": sessionCookie(user.id) } }
