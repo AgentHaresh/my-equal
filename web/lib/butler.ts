@@ -227,34 +227,6 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
   }
 }
 
-/** Parse a WhatsApp "Export chat" text file (Android and iOS formats, day-first dates). */
-export function parseWhatsApp(text: string, myName: string) {
-  const android = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),? (\d{1,2}):(\d{2})(?::\d{2})?\s?([ap]\.?m\.?)? - ([^:]+): (.*)$/i;
-  const ios = /^\[(\d{1,2})\/(\d{1,2})\/(\d{2,4}),? (\d{1,2}):(\d{2})(?::\d{2})?\s?([ap]\.?m\.?)?\] ([^:]+): (.*)$/i;
-  const out: { from: "me" | "them"; sender: string; text: string; at: string }[] = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.replace(/[‎ ]/g, " ").trim();
-    const m = line.match(android) ?? line.match(ios);
-    if (!m) {
-      if (out.length && line) out[out.length - 1].text += "\n" + line; // continuation of a multi-line message
-      continue;
-    }
-    const [, d, mo, y, h, mi, ap, sender, body] = m;
-    let hour = Number(h);
-    if (ap) {
-      const pm = ap.toLowerCase().startsWith("p");
-      if (pm && hour < 12) hour += 12;
-      if (!pm && hour === 12) hour = 0;
-    }
-    const year = y.length === 2 ? 2000 + Number(y) : Number(y);
-    const at = new Date(year, Number(mo) - 1, Number(d), hour, Number(mi));
-    if (isNaN(at.getTime()) || /<Media omitted>|omitted$/i.test(body)) continue;
-    const mine = sender.trim().toLowerCase() === myName.trim().toLowerCase();
-    out.push({ from: mine ? "me" : "them", sender: sender.trim(), text: body, at: at.toISOString() });
-  }
-  return out;
-}
-
 /** Ask the model about a picture. Same model and JSON reply as askJson, with an image attached. */
 export async function askVision<T>(system: string, text: string, imageDataUrl: string): Promise<T> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {

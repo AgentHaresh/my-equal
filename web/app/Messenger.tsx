@@ -110,7 +110,11 @@ export default function Messenger({ role }: Props) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [myName, setMyName] = useState("");
+  // Bringing in a WhatsApp chat: what is happening, and, when it is not clear, who speaks in the file.
+  const [importing, setImporting] = useState(false);
+  const [importNote, setImportNote] = useState<null | { ok: boolean; text: string }>(null);
+  const [importWho, setImportWho] = useState<string[]>([]);
+  const importText = useRef("");
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
   const [reply, setReply] = useState<(Answer & { question: string }) | null>(null);
@@ -184,7 +188,6 @@ export default function Messenger({ role }: Props) {
   const checkAuth = useCallback(async () => {
     const a = await fetch("/api/auth").then((r) => r.json());
     setAuth({ checked: true, clientId: a.clientId ?? "", signedIn: Boolean(a.user) });
-    if (a.user?.name) setMyName((n) => n || a.user.name);
   }, []);
 
   const hangUpLocal = useCallback(() => {
@@ -602,14 +605,49 @@ export default function Messenger({ role }: Props) {
 
   const copyInvite = () => navigator.clipboard?.writeText(window.location.origin).then(() => setNumberNote("Invite link copied. Send it to them: " + window.location.origin));
 
-  async function importChat(file: File) {
-    if (!myName.trim()) return setNotice("Enter your name as it appears in the export first.");
-    setNotice("Reading the chat…");
-    const next = await api("/api/import", "POST", { text: await file.text(), myName });
-    if (next.contacts) setSnap(next);
-    if (next.contactId) open(next.contactId);
-    setNotice(next.imported ? `Imported ${next.imported} messages.${next.error ? ` Equal could not read them: ${next.error}` : ""}` : next.error);
+  /** The words of an exported chat: a .txt as it is, or the .txt inside the .zip an iPhone makes. */
+  async function exportedText(file: File): Promise<string> {
+    const zipped = /\.zip$/i.test(file.name) || file.type.includes("zip");
+    if (!zipped) return file.text();
+    const { unzipSync, strFromU8 } = await import("fflate");
+    const entries = unzipSync(new Uint8Array(await file.arrayBuffer()), { filter: (f) => /\.txt$/i.test(f.name) });
+    const names = Object.keys(entries);
+    const chat = names.find((n) => /_chat\.txt$/i.test(n)) ?? names[0];
+    if (!chat) throw new Error("There is no chat text inside that .zip.");
+    return strFromU8(entries[chat]);
   }
+
+  /** Bring in a WhatsApp export. If it is not clear which speaker is the user, ask. */
+  async function importChat(file: File | null, me?: string) {
+    if (importing) return;
+    setImporting(true);
+    setImportWho([]);
+    setImportNote({ ok: true, text: "Reading the chat…" });
+    try {
+      if (file) importText.current = await exportedText(file);
+      const res = await fetch("/api/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: importText.current, me }) });
+      const next = await res.json();
+      if (next.choose) {
+        setImportWho(next.choose);
+        return setImportNote({ ok: true, text: `Found ${next.count} messages. Which of these is you?` });
+      }
+      if (!res.ok) return setImportNote({ ok: false, text: next.error ?? "Could not bring that chat in." });
+      if (next.contacts) setSnap(next);
+      importText.current = "";
+      setImportNote({
+        ok: true,
+        text: next.already
+          ? `That chat with ${next.title} is already here. Nothing new was added.`
+          : `Brought in ${next.imported} messages with ${next.title}.${next.error ? ` Equal could not read them yet: ${next.error}` : " Equal has read the latest ones."}`,
+      });
+      if (next.contactId) setPersonId(next.contactId);
+    } catch (e) {
+      setImportNote({ ok: false, text: e instanceof Error && e.message ? e.message : "Could not read that file." });
+    } finally {
+      setImporting(false);
+    }
+  }
+
 
   async function askQuestion() {
     const q = question.trim();
@@ -1845,23 +1883,34 @@ export default function Messenger({ role }: Props) {
 
             <section className="order-6 space-y-2 border-t border-white/20 pt-4">
               <h2 className={`${label} text-white/70`}>Bring in a WhatsApp chat</h2>
-              <p className="text-xs text-white/70">In WhatsApp: open a chat, then More, Export chat, Without media. Choose the .txt file here.</p>
-              <input
-                value={myName}
-                onChange={(e) => setMyName(e.target.value)}
-                placeholder="Your name as WhatsApp shows it"
-                className="w-full rounded-full border border-white/30 bg-white/10 px-3.5 py-1.5 text-sm outline-none placeholder:text-white/50 focus:border-equal-lime"
-              />
-              <input
-                type="file"
-                accept=".txt,text/plain"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) importChat(f);
-                  e.target.value = "";
-                }}
-                className="w-full text-xs text-white/70 file:mr-2 file:rounded-full file:border-0 file:bg-equal-lime file:px-3 file:py-1.5 file:font-semibold file:text-equal-ink"
-              />
+              <p className="text-xs text-white/70">In WhatsApp: open a chat, then More, Export chat, Without media. Choose the file it makes (.txt, or .zip from an iPhone).</p>
+              <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-full bg-equal-lime px-4 py-2.5 text-sm font-bold text-equal-ink ${importing ? "pointer-events-none opacity-50" : ""}`}>
+                {importing ? "Reading…" : "Choose the exported chat"}
+                <input
+                  type="file"
+                  accept=".txt,.zip,text/plain,application/zip,application/x-zip-compressed"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) importChat(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {importNote && (
+                <div role="status" className={`rounded-xl px-3 py-2 text-sm ${importNote.ok ? "bg-white/10 text-white/90" : "bg-rose-600 text-white"}`}>
+                  {importNote.text}
+                </div>
+              )}
+              {importWho.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {importWho.map((name) => (
+                    <button key={name} disabled={importing} onClick={() => importChat(null, name)} className="rounded-full border border-equal-lime px-3 py-1 text-sm font-semibold text-equal-lime hover:bg-white/10 disabled:opacity-50">
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <h2 className={`${label} pt-2 text-white/70`}>Take your chats with you</h2>
               <div className="flex flex-wrap gap-2 text-sm">
                 {contact && (
