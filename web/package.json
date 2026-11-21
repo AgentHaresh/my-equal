@@ -1,12 +1,16 @@
 {
-  "name": "web",
+  "name": "my-equal",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint app lib",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "test:e2e": "node tests/run-all.mjs",
+    "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
@@ -27,5 +31,8 @@
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

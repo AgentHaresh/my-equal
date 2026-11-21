@@ -54,7 +54,7 @@ export async function setReminder(db: DB, a: Ask): Promise<Reminder> {
               .slice(-8)
               .map((m) => ({ from: m.from, text: m.text.slice(0, 300) }))
           : [],
-      });
+      }, "set_reminder");
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }

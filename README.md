@@ -1,6 +1,8 @@
 # My Equal
 
-A messenger with a second you inside it. My Equal knows what is happening in your life because it is there in your conversations, and it has one job: make sure you never miss anything, never forget anything, and never lose touch with anyone.
+A messenger with your Equal inside it.
+
+Everyone has so much on their plate that friends and family slip out of reach, and with every tool to stay in touch we still forget what we promised. My Equal makes sure that never happens. It is there in your conversations, so it knows your people, your promises and your responsibilities, and it keeps you equal to all three: never miss anything, never forget anything, never lose touch with anyone.
 
 Built solo at **Builders 2026** (OpenAI x Equal AI, Hyderabad, 21-22 November 2026), in the **Build Creative** track: "Personal context, into everyday AI products".
 
@@ -31,16 +33,15 @@ Sign-in by phone number and one-time code. One-to-one chat with reply, edit, del
 
 ## Try it
 
-1. Open the live link on a phone or computer and sign in with your phone number.
-2. Start a chat: type a friend's number in **New chat**. If they are not here yet, send them the invite.
+1. Open the live link on a phone or computer and sign in with your phone number. A new account sets up its profile first: your name, and optionally a photo and a line about you.
+2. Start a chat: type a friend's number or email in **New chat**. There is no list of who is here; you reach someone only by an address you already know. If they are not here yet, send them the invite.
 3. Tell them something with a date in it ("demo at 2 tomorrow"). Open the home screen: it is under **Don't forget**.
 4. Tap a message and choose **Remind me**, then **Need AI help**.
 5. In the ask box, type `Remember that <name> is allergic to peanuts`, then ask `What do you know about <name>?`.
 
-To see the scripted scenes (the car breakdown with three mechanics, the scam message and scam call on a parent's phone), open **Settings** and choose **Try it with demo chats**. That adds a few made-up people, marked DEMO, and can be removed the same way. Then:
+The call-around works in any chat: tell a friend `My car broke down near Gachibowli and I need it fixed today`, tap **Yes, please**, and open the home screen. Three call codes appear; scan one with a phone, tap **Answer**, and talk to it. When the calls finish, tap **Book**.
 
-- In the demo chat with **Ravi**, send: `My car broke down near Gachibowli and I need it fixed today`. Tap **Yes, please**, then open the home screen: three call codes appear. Scan one with a phone, tap **Answer**, and talk to it. When the calls finish, tap **Book**.
-- For the scam shield, use the links at the bottom of the home screen: message Nanna as a stranger, call Nanna as a stranger, and watch Nanna's phone.
+There is no demo data in the app. An account starts empty and holds only real conversations. (The automated tests' accounts carry a set of made-up chats, including a protected family member's phone, so that the scam shield and call screening can be tested end to end.)
 
 ## How it works
 
@@ -64,6 +65,7 @@ Browser ──> Next.js app (one server) ──> OpenAI
               ├─ lib/files.ts      photos and files
               ├─ lib/otp.ts        phone sign-in codes and SMS
               ├─ lib/store.ts      one private space per person; nudges computed in plain code
+              ├─ lib/storage.ts    SQLite, one row per person, encrypted at rest
               └─ lib/evaluate.ts   the scoreboard
 ```
 
@@ -89,15 +91,34 @@ The model never sees a whole chat history.
 | Code the browser downloads | 216 KB compressed |
 | A message reaching the other person's open screen | about 0.3 s on the live site (0.09 s locally) |
 | A check when nothing has changed | 36 bytes |
-| Automated tests | 15 end-to-end suites, all passing against the live site |
+| Automated tests | 30 unit tests (no server needed) and 17 end-to-end suites |
+| Memory accuracy | measured by a benchmark; results and every miss at `/scoreboard` |
+| Model calls | timed and counted by purpose, live at `/status` |
+
+## Engineering
+
+Built in a weekend by one person, so it is not a finished enterprise system, and this section does not pretend it is. What it does have is the practices that make one possible, each backed by code you can open:
+
+| Concern | What is there | Where |
+|---|---|---|
+| **Context** | The model reads a small ranked slice (12 messages, 40 facts), never a whole history. Facts are structured, carry the message they came from, and die with it. | [docs/CONTEXT.md](docs/CONTEXT.md), `web/lib/butler.ts` |
+| **Observability** | Health check, metrics with percentiles, one structured log line per model call (no message text), and a live status page. | `/status`, `/api/health`, `/api/metrics`, `web/lib/metrics.ts`, `web/lib/log.ts` |
+| **Security and privacy** | No user directory, private spaces, data encrypted at rest (AES-256-GCM), hashed one-time codes that never reach the browser, signed cookies, rate limits, safe file serving, security headers. A separate read-only review by an AI reviewer was run, and its findings were fixed or written down. | [SECURITY.md](SECURITY.md) |
+| **Storage** | SQLite, one row per person, only changed rows written, each save one transaction. | `web/lib/storage.ts` |
+| **Reliability** | Model calls time out, a failed model call never blocks a message, saves are transactional, unreadable data is never overwritten, failures are logged and not swallowed. | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Scale** | One process with an embedded database today. The data is partitioned by user, and each limit has a named replacement. | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Evaluation** | A decision scoreboard (60 messages) and a memory benchmark (recall, dates, noise, answers, honesty), both run through the app's own code with the real model. | `/scoreboard`, `web/lib/evaluate.ts`, `web/lib/memory-eval.ts` |
+| **Quality gates** | Lint, strict type-check, unit tests and a production build run in CI on every push. | `.github/workflows/ci.yml`, `npm run check` |
+
+The known debts are named in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the main screen still passes a lot of state down as props, inputs are validated by hand, and the end-to-end tests call the real model so they run by hand, not in CI.
 
 ## What is real and what is not
 
 - **Real:** phone sign-in, person-to-person chat and everything in "The messenger" above, WhatsApp import, the reading of messages, reminders, the voice conversation with providers, the comparison, the scam check.
-- **Sign-in codes:** sent by SMS when an SMS service is set up on the server. Without one, the code is shown on the sign-in screen with a notice, which is fine for a demo and proves nothing about who holds the number.
+- **Sign-in codes:** sent by SMS. If a text cannot be sent, sign-in is refused; a code is never shown on screen unless the demo switch `OTP_ONSCREEN_FALLBACK=on` is set.
 - **Simulated:** the providers. A call goes to a web page opened by link or QR code, not to a phone line. In a demo, people in the room play the mechanics.
 - **Simulated:** the protected family member ("Nanna") is a simple phone view, not a second account, and call screening happens inside the app. It does not intercept real phone calls.
-- **Demo chats:** made-up people, off by default, added only on request and marked DEMO.
+- **No demo data:** an account starts empty. Made-up chats exist only in the automated tests' accounts.
 
 ## Scoreboard
 
@@ -116,8 +137,8 @@ This is a small set written by the builder, and the messages are clear-cut, so a
 
 Stated plainly, because a messenger asks for trust.
 
-- **Not end-to-end encrypted.** Messages are stored on the server and read by an AI model (OpenAI) so the assistant can help. The sign-in screen says so. Encryption with the reading done on the device is the real answer, and is not built.
-- **One server, one data file.** Fine for hundreds of people, not for a launch. When something changes, the app still fetches its whole state.
+- **Not end-to-end encrypted.** Data is encrypted in transit and at rest, but the server can read messages, because the assistant reads them there with an AI model (OpenAI). The sign-in screen says so. A server-side assistant and end-to-end encryption cannot both be true; reading on the device is the way to have both, and it is not built.
+- **One server, with an embedded database.** Fine for hundreds of people, not for a launch. When something changes, the app still fetches its whole state.
 - **Calls have no relay server.** They connect browser to browser, and can fail between some networks.
 - **Notifications** need the browser's permission, and on an iPhone the app must first be added to the Home Screen. A reminder call rings only while the app is open; when it is closed you get a notification instead.
 - **No groups**, and no caller ID for real phone calls: that needs a native Android app.
@@ -133,7 +154,7 @@ cd web
 npm install
 ```
 
-Create a file named `.env` in the repository root (one level above `web`):
+Copy `env.example` to `.env` in the repository root (one level above `web`) and fill it in. The minimum is:
 
 ```
 OPENAI_API_KEY=your-key
@@ -148,25 +169,38 @@ FAST2SMS_KEY=your-key                                 # sends sign-in codes by S
 TWILIO_ACCOUNT_SID=...                                # or Twilio: these three together
 TWILIO_AUTH_TOKEN=...
 TWILIO_FROM=+1...
+OTP_ONSCREEN_FALLBACK=on                              # demo only: show the sign-in code on screen when it cannot be texted
+DATA_KEY=<64 hex characters>                          # seals the data on disk; a server makes its own
+PUBLIC_URL=https://your-address                       # used in invitation texts
+METRICS_TOKEN=...                                     # lets a scraper read /api/metrics
+LOG_LEVEL=silent                                      # turns the JSON log lines off
 ```
 
 ```bash
 npm run dev
 ```
 
-## Tests
+## Tests and checks
 
-End-to-end tests run against a running server and sign in through a test-only login guarded by `TEST_LOGIN_SECRET`.
+```bash
+cd web
+npm run check        # lint, strict type-check, and the unit tests
+npm test             # 30 unit tests of pure logic: no server, no network, no model
+```
+
+End-to-end suites drive the real app over HTTP, with two or three accounts talking to each other. They need a running server and call the real model:
 
 ```bash
 TEST_LOGIN_SECRET=localtest SESSION_SECRET=local npx next start -p 3217
 ```
 
 ```bash
-node tests/messages-test.mjs http://localhost:3217
+TEST_LOGIN_SECRET=localtest npm run test:e2e
 ```
 
-The fifteen suites in `web/tests/`: `multiuser`, `messages`, `more`, `files`, `live`, `product`, `phone`, `people`, `memory`, `extras`, `call`, `callaround`, `voice`, `scam`, `protect`. None of them sends an SMS: the phone suite skips every step that would text a number when an SMS service is connected.
+The seventeen suites in `web/tests/`: `multiuser`, `messages`, `more`, `files`, `live`, `product`, `phone`, `profile`, `people`, `import`, `memory`, `extras`, `call`, `callaround`, `voice`, `scam`, `protect`. None of them sends an SMS: the phone suite skips every step that would text a number when an SMS service is connected.
+
+CI (`.github/workflows/ci.yml`) runs lint, type-check, unit tests and the build. It does not run the end-to-end suites, because they need a model key.
 
 ## Deploying
 
@@ -176,6 +210,8 @@ One Ubuntu server on AWS, with Caddy providing HTTPS (the microphone, camera and
 
 - `web/` the app
 - `deploy/` server setup and deploy scripts
+- `docs/` how context is managed, and the architecture with its limits
+- `SECURITY.md` what protects people's data, and what does not yet
 - `slides/` the five-slide deck
 - `brag-output/` the launch film, its poster and post text
 - `BUILD-PLAN.md` the plan written on Saturday morning; the build went well past it

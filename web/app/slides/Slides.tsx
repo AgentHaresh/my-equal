@@ -28,7 +28,7 @@ function Slide({ n, kicker, children }: { n: number; kicker: string; children: R
         </header>
         <div className="flex min-h-0 flex-1 flex-col justify-center">{children}</div>
         <footer className="flex items-center justify-between text-[13px] uppercase tracking-[0.22em] text-white/60">
-          <span>Builders 2026 · Build Creative</span>
+          <span>My Equal · built at Equal AI&apos;s Builders 2026</span>
           <span>0{n}</span>
         </footer>
       </div>
@@ -79,43 +79,47 @@ export default function Slides() {
         }
       `}</style>
 
-      <Slide n={1} kicker="The problem">
-        <h1 className={h1}>I can&apos;t keep up with my own life.</h1>
-        <p className="mt-5 max-w-[900px] text-[25px] leading-snug text-white/95">
-          Everything I need to remember passes through my messages. What broke, who is waiting on me, what I promised. Then it scrolls away, and my
-          messaging app does nothing with it.
+      <Slide n={1} kicker="The world we live in">
+        <h1 className={h1}>
+          More connected than ever.
+          <br />
+          And still losing touch.
+        </h1>
+        <p className="mt-5 max-w-[960px] text-[25px] leading-snug text-white/95">
+          Everyone has so much on their plate that friends and family slip out of reach, a little more each week. And with every tool to stay in
+          touch, we still forget what we promised and what we are responsible for.
         </p>
         <div className="mt-9 grid grid-cols-3 gap-5">
           <div className={card}>
-            <div className="font-display text-[46px] leading-none text-equal-lime">15 bn hrs</div>
-            <div className="mt-2 text-[18px] leading-snug text-white/90">Indians spent on hold in 2024, by one estimate. I make the tedious calls myself.</div>
+            <div className="font-display text-[34px] leading-none text-equal-lime">People drift</div>
+            <div className="mt-3 text-[18px] leading-snug text-white/90">Nobody decides to lose touch. Weeks pass, and the distance grows until it feels hard to cross.</div>
           </div>
           <div className={card}>
-            <div className="font-display text-[46px] leading-none text-equal-lime">1.2 lakh</div>
-            <div className="mt-2 text-[18px] leading-snug text-white/90">&ldquo;digital arrest&rdquo; cases in 2024, about ₹1,900 crore lost. My parents face scams alone.</div>
+            <div className="font-display text-[34px] leading-none text-equal-lime">Promises slip</div>
+            <div className="mt-3 text-[18px] leading-snug text-white/90">&ldquo;I&apos;ll send it by Friday.&rdquo; &ldquo;I&apos;ll come on Monday.&rdquo; It is all in our chats, and then it scrolls away.</div>
           </div>
           <div className={card}>
-            <div className="font-display text-[46px] leading-none text-equal-lime">22 days</div>
-            <div className="mt-2 text-[18px] leading-snug text-white/90">since I last spoke to my brother. I never noticed. Nothing told me.</div>
+            <div className="font-display text-[34px] leading-none text-equal-lime">Chores pile up</div>
+            <div className="mt-3 text-[18px] leading-snug text-white/90">The mechanic, the doctor, the pharmacy. Indians spent an estimated 15 billion hours on hold in 2024.</div>
           </div>
         </div>
       </Slide>
 
       <Slide n={2} kicker="What I built">
-        <h1 className={`${h1} !text-[54px]`}>A second me, inside my messenger.</h1>
-        <p className="mt-3 max-w-[980px] text-[22px] leading-snug text-white/95">
-          One job: make sure I never miss anything, never forget anything, and never lose touch with anyone.
+        <h1 className={`${h1} !text-[54px]`}>My Equal makes sure that never happens.</h1>
+        <p className="mt-3 max-w-[1040px] text-[22px] leading-snug text-white/95">
+          It lives in my messenger and keeps me equal to my own life: every person, every promise, every responsibility.
         </p>
         <div className="mt-6 grid grid-cols-4 gap-4">
           {[
-            ["Remembers", "Plans, promises and worries from my chats, photos and voice notes. Ask what it knows about anyone."],
-            ["Reminds, calls me", "Tap a message: Remind me. It works out the time and rings me ahead of it."],
-            ["Keeps me close", "Learns who each person is to me and how often we talk. Tells me when that breaks."],
-            ["Acts, and guards", "Phones three mechanics, compares, books when I approve. Flags scams aimed at my father."],
+            ["Keeps my people close", "Knows who each person is to me and how close I want them. It works that out itself, and gladly takes more when I tell it."],
+            ["Keeps every promise", "Plans and promises in my chats become reminders. It rings me ahead of a flight or a meeting."],
+            ["Does the work for me", "It spots a responsibility and asks first: call a mechanic, book the doctor, ring the pharmacy. It acts when I say yes."],
+            ["Looks out for family", "Flags scam messages and calls aimed at my parents, and tells me straight away."],
           ].map(([t, d]) => (
             <div key={t} className={`${card} !p-6`}>
-              <div className="font-display text-[27px] leading-tight text-equal-lime">{t}</div>
-              <div className="mt-2 text-[17px] leading-snug text-white/90">{d}</div>
+              <div className="font-display text-[26px] leading-tight text-equal-lime">{t}</div>
+              <div className="mt-2 text-[16.5px] leading-snug text-white/90">{d}</div>
             </div>
           ))}
         </div>

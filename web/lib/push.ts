@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import * as webpush from "web-push";
 import { root, save } from "./store";
+import { count } from "./metrics";
 
 /**
  * Notifications that reach a phone or computer while My Equal is closed: a new message, an
@@ -66,6 +67,7 @@ export function notify(userId: string, note: Note) {
   if (!list?.length) return;
   keys();
   for (const sub of list) {
+    count("push.sent");
     try {
       webpush.sendNotification(sub, JSON.stringify(note), { TTL: 3600, urgency: "high" }).catch((e: { statusCode?: number }) => {
         // The browser has withdrawn this subscription: forget it.

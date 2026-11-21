@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "My Equal",
     short_name: "My Equal",
-    description: "A messenger with a second you inside it: it remembers, reminds, and looks out for your family.",
+    description: "A messenger with your Equal inside it: it keeps your people close, your promises kept, and your family safe.",
     id: "/",
     start_url: "/",
     scope: "/",

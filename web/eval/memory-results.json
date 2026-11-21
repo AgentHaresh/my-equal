@@ -1,0 +1,239 @@
+{
+ "ranAt": "2026-11-21T22:30:36.769Z",
+ "model": "gpt-6.1-terra",
+ "note": "First run. No tuning of prompts on these cases.",
+ "cases": 8,
+ "modelCalls": 42,
+ "recall": {
+  "right": 8,
+  "total": 8
+ },
+ "dates": {
+  "right": 3,
+  "total": 3
+ },
+ "noise": {
+  "clean": 4,
+  "total": 4
+ },
+ "answers": {
+  "right": 9,
+  "total": 9
+ },
+ "honesty": {
+  "right": 6,
+  "total": 6
+ },
+ "checks": [
+  {
+   "caseId": "appointment-with-date",
+   "kind": "recall",
+   "what": "the eye check-up",
+   "ok": true,
+   "detail": "Anna has blurry vision and needs an eye checkup."
+  },
+  {
+   "caseId": "appointment-with-date",
+   "kind": "date",
+   "what": "the eye check-up is on the right day",
+   "ok": true,
+   "detail": "expected 2026-11-22, got no date, 2026-11-22"
+  },
+  {
+   "caseId": "appointment-with-date",
+   "kind": "noise",
+   "what": "\"tell me how it goes\" is not kept as a fact",
+   "ok": true,
+   "detail": "left out"
+  },
+  {
+   "caseId": "appointment-with-date",
+   "kind": "answer",
+   "what": "Where is Anna's eye check-up?",
+   "ok": true,
+   "detail": "Anna's eye check-up is at LV Prasad."
+  },
+  {
+   "caseId": "appointment-with-date",
+   "kind": "honesty",
+   "what": "What is Anna's blood group?",
+   "ok": true,
+   "detail": "declined, as it should"
+  },
+  {
+   "caseId": "my-own-promise",
+   "kind": "recall",
+   "what": "my promise to send the hotel shortlist",
+   "ok": true,
+   "detail": "Send Ravi the hotel shortlist"
+  },
+  {
+   "caseId": "my-own-promise",
+   "kind": "date",
+   "what": "my promise to send the hotel shortlist is on the right day",
+   "ok": true,
+   "detail": "expected 2026-11-22, got 2026-11-22"
+  },
+  {
+   "caseId": "my-own-promise",
+   "kind": "noise",
+   "what": "\"super\" is not kept as a fact",
+   "ok": true,
+   "detail": "left out"
+  },
+  {
+   "caseId": "my-own-promise",
+   "kind": "answer",
+   "what": "What did I promise Ravi?",
+   "ok": true,
+   "detail": "You promised Ravi you’d send him the hotel shortlist for the Srisailam trip on the evening of Sunday, 22 November."
+  },
+  {
+   "caseId": "my-own-promise",
+   "kind": "honesty",
+   "what": "Which hotel did we book in Srisailam?",
+   "ok": true,
+   "detail": "declined, as it should"
+  },
+  {
+   "caseId": "small-talk-only",
+   "kind": "noise",
+   "what": "small talk keeps at most 0 facts",
+   "ok": true,
+   "detail": "(nothing kept)"
+  },
+  {
+   "caseId": "small-talk-only",
+   "kind": "honesty",
+   "what": "When is Kiran's birthday?",
+   "ok": true,
+   "detail": "declined, as it should"
+  },
+  {
+   "caseId": "said-twice",
+   "kind": "recall",
+   "what": "the visa interview",
+   "ok": true,
+   "detail": "Priya got a US visa interview slot at the Chennai consulate"
+  },
+  {
+   "caseId": "said-twice",
+   "kind": "date",
+   "what": "the visa interview is on the right day",
+   "ok": true,
+   "detail": "expected 2026-11-30, got no date, 2026-11-30"
+  },
+  {
+   "caseId": "said-twice",
+   "kind": "noise",
+   "what": "the same thing said twice is not kept more than 2 times",
+   "ok": true,
+   "detail": "2 kept: Priya got a US visa interview slot at the Chennai consulate | Priya's US visa interview is at 9:30 am on November 30"
+  },
+  {
+   "caseId": "said-twice",
+   "kind": "answer",
+   "what": "Where is Priya's visa interview?",
+   "ok": true,
+   "detail": "Your sister Priya's visa interview is at the Chennai consulate."
+  },
+  {
+   "caseId": "said-twice",
+   "kind": "answer",
+   "what": "How does Priya feel about the interview?",
+   "ok": true,
+   "detail": "Priya told you she feels nervous about the interview."
+  },
+  {
+   "caseId": "money-and-due-date",
+   "kind": "recall",
+   "what": "the rent amount",
+   "ok": true,
+   "detail": "Transfer ₹18,500 rent by the 5th; ₹2,000 maintenance is separate"
+  },
+  {
+   "caseId": "money-and-due-date",
+   "kind": "answer",
+   "what": "How much is my rent?",
+   "ok": true,
+   "detail": "Your rent is ₹18,500 per month. Maintenance of ₹2,000 is separate."
+  },
+  {
+   "caseId": "money-and-due-date",
+   "kind": "answer",
+   "what": "How much is the maintenance?",
+   "ok": true,
+   "detail": "Your maintenance is ₹2,000, separate from the rent."
+  },
+  {
+   "caseId": "money-and-due-date",
+   "kind": "honesty",
+   "what": "What is Mr. Rao's bank account number?",
+   "ok": true,
+   "detail": "declined, as it should"
+  },
+  {
+   "caseId": "health-and-preference",
+   "kind": "recall",
+   "what": "the blood-pressure medicine",
+   "ok": true,
+   "detail": "Nanna has run out of Telma 40 blood pressure tablets"
+  },
+  {
+   "caseId": "health-and-preference",
+   "kind": "answer",
+   "what": "Which medicine does Nanna take for blood pressure?",
+   "ok": true,
+   "detail": "Your father, Nanna, takes Telma 40 for blood pressure."
+  },
+  {
+   "caseId": "health-and-preference",
+   "kind": "honesty",
+   "what": "What is Nanna's cholesterol level?",
+   "ok": true,
+   "detail": "declined, as it should"
+  },
+  {
+   "caseId": "plan-then-done",
+   "kind": "recall",
+   "what": "sending the demo slides",
+   "ok": true,
+   "detail": "Send Sai the demo slides by noon"
+  },
+  {
+   "caseId": "plan-then-done",
+   "kind": "recall",
+   "what": "a plan that was then done is no longer an open reminder",
+   "ok": true,
+   "detail": "closed"
+  },
+  {
+   "caseId": "plan-then-done",
+   "kind": "answer",
+   "what": "Did I send Sai the demo slides?",
+   "ok": true,
+   "detail": "Yes, you sent Sai the demo slides on Saturday, 21 November. Sai confirmed receiving them."
+  },
+  {
+   "caseId": "told-directly",
+   "kind": "recall",
+   "what": "the peanut allergy",
+   "ok": true,
+   "detail": "Abhishek is allergic to peanuts."
+  },
+  {
+   "caseId": "told-directly",
+   "kind": "answer",
+   "what": "What do you know about Abhishek?",
+   "ok": true,
+   "detail": "Abhishek is your close friend, someone you want to keep close; you last spoke on Saturday, 21 November. He is allergic to peanuts and suggested lunch at Paradise on Sunday, 22 November."
+  },
+  {
+   "caseId": "told-directly",
+   "kind": "honesty",
+   "what": "Is Abhishek vegetarian?",
+   "ok": true,
+   "detail": "declined, as it should"
+  }
+ ]
+}

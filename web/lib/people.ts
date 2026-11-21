@@ -28,7 +28,7 @@ export async function learnRelation(db: DB, contact: Contact): Promise<string | 
   if (thread.length < 4) return null;
   let r: { relation?: string; confidence?: number; why?: string };
   try {
-    r = await askJson(SYSTEM, { NAME: contact.name, CHAT: thread.slice(-60).map((m) => ({ from: m.from, text: m.text.slice(0, 300) })) });
+    r = await askJson(SYSTEM, { NAME: contact.name, CHAT: thread.slice(-60).map((m) => ({ from: m.from, text: m.text.slice(0, 300) })) }, "learn_relationship");
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }

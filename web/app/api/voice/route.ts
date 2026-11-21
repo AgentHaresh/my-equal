@@ -1,3 +1,4 @@
+import { allow, clientAddress, tooMany } from "@/lib/ratelimit";
 import { save } from "@/lib/store";
 import { findCall, providerSays } from "@/lib/calls";
 import { speak, transcribe } from "@/lib/voice";
@@ -5,6 +6,9 @@ import { speak, transcribe } from "@/lib/voice";
 // GET: the audio for one line Equal said in a call. Only lines that exist in a real call can be
 // spoken, so this cannot be used as a general text-to-speech service.
 export async function GET(request: Request) {
+  // Opened by link with no sign-in, and each use costs a model or speech call: limited per network address.
+  const limit = allow("link.call", clientAddress(request), 3000, 600);
+  if (!limit.ok) return tooMany(limit);
   const q = new URL(request.url).searchParams;
   const found = findCall(q.get("id") ?? "");
   const line = found?.call.transcript[Number(q.get("n"))];
@@ -19,6 +23,9 @@ export async function GET(request: Request) {
 
 // POST: the provider spoke. Transcribe it, let Equal reply, and return the updated call.
 export async function POST(request: Request) {
+  // Opened by link with no sign-in, and each use costs a model or speech call: limited per network address.
+  const limit = allow("link.call", clientAddress(request), 3000, 600);
+  if (!limit.ok) return tooMany(limit);
   const form = await request.formData().catch(() => null);
   const audio = form?.get("audio");
   const found = findCall(String(form?.get("id") ?? ""));

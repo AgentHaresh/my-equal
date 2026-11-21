@@ -5,6 +5,7 @@ import { deliver } from "@/lib/deliver";
 import { context, unauthorised } from "@/lib/auth";
 import { snapshot, friendSnapshot } from "@/lib/snapshot";
 import { deleteMessage, editMessage, react } from "@/lib/edit";
+import { allow, clientAddress, tooMany } from "@/lib/ratelimit";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -23,7 +24,12 @@ export async function POST(request: Request) {
 
   // The other side of a sample chat, typed from a link. Only sample contacts can be written to this way.
   if (body?.from === "them") {
+    // This page needs no sign-in and each message is read by the model, so it is limited per network address and per account.
+    const byAddress = allow("link.message", clientAddress(request), 1500, 600);
+    if (!byAddress.ok) return tooMany(byAddress);
     const owner = findUser(String(body?.u ?? ""));
+    const byOwner = owner ? allow("link.message.owner", owner.id, 300, 600) : null;
+    if (byOwner && !byOwner.ok) return tooMany(byOwner);
     const space = owner && spaceOf(owner.id);
     const contact = space?.contacts.find((c) => c.id === body?.contactId && c.sample);
     if (!space || !contact) return Response.json({ error: "This link is not valid." }, { status: 404 });

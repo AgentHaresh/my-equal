@@ -15,9 +15,12 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const phone = normalisePhone(String(body?.phone ?? ""));
   if (!phone) return Response.json({ error: "That does not look like a phone number." }, { status: 400 });
+  // The link is the server's own address. A host header is used only if it is a plain host name.
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "";
-  const link = process.env.PUBLIC_URL ?? (host ? `https://${host}` : new URL(request.url).origin);
-  const message = `${ctx.user.name} invited you to chat on Equal, a messenger that remembers for you: ${link}`;
+  const link = process.env.PUBLIC_URL ?? (/^[a-z0-9.-]+(:\d+)?$/i.test(host) ? `https://${host}` : new URL(request.url).origin);
+  // The sender's name goes into a text to a stranger, so it carries letters, digits and spaces only.
+  const sender = ctx.user.name.replace(/[^\p{L}\p{M}\p{N} .'-]/gu, "").trim().slice(0, 40) || "A friend";
+  const message = `${sender} invited you to chat on Equal, a messenger that remembers for you: ${link}`;
   // What the app can fall back to: the phone's own messages app, with the words filled in.
   const fallback = { phone, message, link };
 

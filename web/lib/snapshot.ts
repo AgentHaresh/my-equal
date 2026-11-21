@@ -15,11 +15,11 @@ function presenceOf(seenAt: string | undefined): string | null {
 
 /** Everything the signed-in person's screen renders from. Computed nudges are added fresh on every read. */
 export function snapshot(db: DB, user: User | null, error?: string | null) {
+  // Starting a chat with someone must not reveal when they are online; that needs a reply from them.
+  const replied = new Set(db.messages.filter((m) => m.from === "them").map((m) => m.contactId));
   const mine = (contactId: string) => !db.contacts.find((c) => c.id === contactId)?.owner;
   return {
-    me: user ? ({ id: user.id, name: user.name, email: user.email, phone: user.phone, picture: user.picture } as Person & { email: string; phone?: string }) : null,
-    // Other signed-in people, so a chat can be started with them. Test accounts and real people never see each other.
-    people: user ? root().users.filter((u) => u.id !== user.id && Boolean(u.test) === Boolean(user.test)).map((u): Person => ({ id: u.id, name: u.name, picture: u.picture })) : ([] as Person[]),
+    me: user ? ({ id: user.id, name: user.name, email: user.email, phone: user.phone, picture: user.picture, about: user.about, needsSetup: !user.profileSetAt && !user.test } as Person & { email: string; phone?: string; about?: string; needsSetup: boolean }) : null,
     // Threads on a protected family member's phone are theirs, not the user's.
     contacts: db.contacts.filter((c) => !c.owner),
     messages: db.messages.filter((m) => mine(m.contactId)),
@@ -29,7 +29,7 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
     jobs: db.jobs,
     // A voice call this person is in, or being rung for.
     // When each real person in my chats was last here, so the chat can say "online" or "last seen".
-    presence: Object.fromEntries(db.contacts.filter((c) => c.userId).map((c) => [c.id, presenceOf(root().users.find((u) => u.id === c.userId)?.seenAt)])) as Record<string, string | null>,
+    presence: Object.fromEntries(db.contacts.filter((c) => c.userId && replied.has(c.id)).map((c) => [c.id, presenceOf(root().users.find((u) => u.id === c.userId)?.seenAt)])) as Record<string, string | null>,
     demo: Boolean(db.demo) || db.contacts.some((c) => c.sample),
     call: user ? currentCall(user) : null,
     // A reminder Equal should ring the user about right now.
@@ -42,7 +42,7 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
 }
 export type Snapshot = ReturnType<typeof snapshot>;
 
-const bare = { me: null, people: [], presence: {}, demo: false, call: null, reminderCall: null, scheduled: [], memories: [], suggestions: [], gateLog: [], jobs: [], butler: "online", error: null };
+const bare = { me: null, presence: {}, demo: false, call: null, reminderCall: null, scheduled: [], memories: [], suggestions: [], gateLog: [], jobs: [], butler: "online", error: null };
 
 /** The other side of a sample chat sees only that one conversation: no notes from Equal, memories, offers or jobs. */
 export function friendSnapshot(db: DB, contactId: string): Snapshot {

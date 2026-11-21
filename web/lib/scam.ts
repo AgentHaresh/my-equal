@@ -52,7 +52,7 @@ export async function checkScam(db: DB, contact: Contact, msg: Message): Promise
     v = await askJson<Verdict>(SYSTEM, {
       EARLIER: earlier.map((m) => ({ from: m.from === "them" ? "unknown number" : "recipient", text: m.text })),
       MESSAGE: msg.text,
-    });
+    }, "scam_check");
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }

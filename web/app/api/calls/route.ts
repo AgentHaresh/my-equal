@@ -1,3 +1,4 @@
+import { allow, clientAddress, tooMany } from "@/lib/ratelimit";
 import { save } from "@/lib/store";
 import { findCall, openCall, providerSays } from "@/lib/calls";
 
@@ -25,6 +26,9 @@ export async function GET(request: Request) {
 
 // POST: the provider says something; Equal replies.
 export async function POST(request: Request) {
+  // Opened by link with no sign-in, and each use costs a model or speech call: limited per network address.
+  const limit = allow("link.call", clientAddress(request), 3000, 600);
+  if (!limit.ok) return tooMany(limit);
   const body = await request.json().catch(() => null);
   const text = typeof body?.text === "string" ? body.text.trim().slice(0, 1000) : "";
   const found = findCall(String(body?.id ?? ""));

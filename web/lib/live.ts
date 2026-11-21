@@ -24,4 +24,5 @@ export function poke() {
   }
 }
 
+/** How many apps are connected right now. */
 export const liveCount = () => listeners().size;

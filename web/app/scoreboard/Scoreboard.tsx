@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Results, Outcome } from "@/lib/evaluate";
+import MemoryBenchmark from "./MemoryBenchmark";
 
 function Tile({ title, right, total, hint }: { title: string; right: number; total: number; hint: string }) {
   const pct = total ? Math.round((right / total) * 100) : 0;
@@ -94,6 +95,7 @@ export default function Scoreboard() {
           A small test set shows the direction, not a guarantee. Every miss is listed above. The test messages are in the repository at web/eval/cases.json.
         </div>
       </footer>
+      <MemoryBenchmark />
     </div>
   );
 }

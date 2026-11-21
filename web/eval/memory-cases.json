@@ -1,0 +1,118 @@
+{
+  "about": "A memory benchmark in the style of LongMemEval, at small scale. Each case is a short chat. After Equal has read it, the benchmark checks which facts were kept, whether their dates are right, whether small talk was left out, and whether questions are answered from memory or correctly declined. Days are relative to the day the benchmark runs: 0 is today, 1 is tomorrow, -2 is two days ago.",
+  "cases": [
+    {
+      "id": "appointment-with-date",
+      "contact": { "name": "Anna", "relation": "brother" },
+      "messages": [
+        { "from": "them", "day": -3, "time": "19:10", "text": "Eyes konchem blur ga unnayi ra, check cheyinchukovali." },
+        { "from": "me", "day": -3, "time": "19:12", "text": "LV Prasad ki vellu Anna, delay cheyaku." },
+        { "from": "them", "day": -2, "time": "09:30", "text": "Appointment dorikindi. Eye check-up at LV Prasad, day after tomorrow at 10:30 am." },
+        { "from": "me", "day": -2, "time": "09:31", "text": "Ok Anna, tell me how it goes." }
+      ],
+      "facts": [{ "label": "the eye check-up", "any": ["eye", "check-?up", "lv prasad"], "about": "contact", "day": 0 }],
+      "noise": ["tell me how it goes"],
+      "questions": [
+        { "q": "Where is Anna's eye check-up?", "any": ["lv prasad"] },
+        { "q": "What is Anna's blood group?", "unknown": true }
+      ]
+    },
+    {
+      "id": "my-own-promise",
+      "contact": { "name": "Ravi", "relation": "close friend" },
+      "messages": [
+        { "from": "them", "day": -1, "time": "20:00", "text": "Srisailam trip ki hotel chusava?" },
+        { "from": "me", "day": -1, "time": "20:02", "text": "I'll send you the hotel shortlist tomorrow evening." },
+        { "from": "them", "day": -1, "time": "20:03", "text": "Super ra." }
+      ],
+      "facts": [{ "label": "my promise to send the hotel shortlist", "any": ["shortlist", "hotel"], "about": "user", "day": 0 }],
+      "noise": ["super"],
+      "questions": [
+        { "q": "What did I promise Ravi?", "any": ["shortlist", "hotel"] },
+        { "q": "Which hotel did we book in Srisailam?", "unknown": true }
+      ]
+    },
+    {
+      "id": "small-talk-only",
+      "contact": { "name": "Kiran", "relation": "colleague" },
+      "messages": [
+        { "from": "them", "day": 0, "time": "10:00", "text": "Good morning!" },
+        { "from": "me", "day": 0, "time": "10:01", "text": "Morning Kiran. Coffee ayyinda?" },
+        { "from": "them", "day": 0, "time": "10:02", "text": "Haha just now. Traffic was terrible today." },
+        { "from": "me", "day": 0, "time": "10:03", "text": "Same here lol" }
+      ],
+      "facts": [],
+      "maxFacts": 0,
+      "questions": [{ "q": "When is Kiran's birthday?", "unknown": true }]
+    },
+    {
+      "id": "said-twice",
+      "contact": { "name": "Priya", "relation": "sister" },
+      "messages": [
+        { "from": "them", "day": -4, "time": "08:00", "text": "Annayya! US visa interview slot dorikindi, Chennai consulate lo." },
+        { "from": "them", "day": -4, "time": "08:05", "text": "Interview is in 12 days from today, 9:30 in the morning." },
+        { "from": "me", "day": -4, "time": "08:06", "text": "Super ra! All the best." },
+        { "from": "them", "day": -1, "time": "21:00", "text": "Reminder annayya, my visa interview at the Chennai consulate is 9 days from now at 9:30 am. Nervous ga undi." }
+      ],
+      "facts": [{ "label": "the visa interview", "any": ["visa"], "about": "contact", "day": 8 }],
+      "maxMatching": { "any": ["visa interview", "interview"], "count": 2 },
+      "questions": [
+        { "q": "Where is Priya's visa interview?", "any": ["chennai"] },
+        { "q": "How does Priya feel about the interview?", "any": ["nervous", "worried", "anxious", "tension"] }
+      ]
+    },
+    {
+      "id": "money-and-due-date",
+      "contact": { "name": "Mr. Rao", "relation": "landlord" },
+      "messages": [
+        { "from": "them", "day": -2, "time": "11:00", "text": "Rent this month is 18,500. Please transfer by the 5th. Maintenance 2,000 is separate." },
+        { "from": "me", "day": -2, "time": "11:05", "text": "Noted sir, will transfer." }
+      ],
+      "facts": [{ "label": "the rent amount", "any": ["18,?500"] }],
+      "questions": [
+        { "q": "How much is my rent?", "any": ["18,?500"] },
+        { "q": "How much is the maintenance?", "any": ["2,?000"] },
+        { "q": "What is Mr. Rao's bank account number?", "unknown": true }
+      ]
+    },
+    {
+      "id": "health-and-preference",
+      "contact": { "name": "Nanna", "relation": "father" },
+      "messages": [
+        { "from": "them", "day": -5, "time": "07:30", "text": "BP tablets aipoyayi. Telma 40 teesukuni ra." },
+        { "from": "me", "day": -5, "time": "07:35", "text": "Order chesa Nanna, repu vastayi." },
+        { "from": "them", "day": -1, "time": "18:00", "text": "Weekend intiki vastava? Amma chepala pulusu chestundi." },
+        { "from": "me", "day": -1, "time": "18:02", "text": "Vasta Nanna, Sunday lunch ki." }
+      ],
+      "facts": [{ "label": "the blood-pressure medicine", "any": ["telma", "bp", "blood pressure"], "about": "contact" }],
+      "questions": [
+        { "q": "Which medicine does Nanna take for blood pressure?", "any": ["telma"] },
+        { "q": "What is Nanna's cholesterol level?", "unknown": true }
+      ]
+    },
+    {
+      "id": "plan-then-done",
+      "contact": { "name": "Sai", "relation": "friend" },
+      "messages": [
+        { "from": "me", "day": -2, "time": "15:00", "text": "I'll send you the demo slides by tomorrow noon." },
+        { "from": "them", "day": -2, "time": "15:01", "text": "Ok anna." },
+        { "from": "me", "day": -1, "time": "11:30", "text": "Sent the demo slides just now, check your mail." },
+        { "from": "them", "day": -1, "time": "11:40", "text": "Got them, thanks!" }
+      ],
+      "facts": [{ "label": "sending the demo slides", "any": ["slides"] }],
+      "resolved": { "any": ["slides"] },
+      "questions": [{ "q": "Did I send Sai the demo slides?", "any": ["sent", "yes", "sen[dt]"] }]
+    },
+    {
+      "id": "told-directly",
+      "contact": { "name": "Abhishek", "relation": "close friend" },
+      "messages": [{ "from": "them", "day": -1, "time": "13:00", "text": "Lunch ki Paradise veldama repu?" }],
+      "tell": ["Remember that Abhishek is allergic to peanuts"],
+      "facts": [{ "label": "the peanut allergy", "any": ["peanut"], "about": "contact" }],
+      "questions": [
+        { "q": "What do you know about Abhishek?", "any": ["peanut"] },
+        { "q": "Is Abhishek vegetarian?", "unknown": true }
+      ]
+    }
+  ]
+}

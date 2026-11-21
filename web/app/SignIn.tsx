@@ -25,8 +25,6 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
   const [phone, setPhone] = useState("");
   const [sentTo, setSentTo] = useState("");
   const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [known, setKnown] = useState(true);
   const [shownCode, setShownCode] = useState<string | null>(null);
   const [why, setWhy] = useState<string | null>(null); // why the code could not be texted, if it was tried
   const [busy, setBusy] = useState(false);
@@ -63,7 +61,6 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
       const r = await res.json();
       if (!res.ok) return setError(r.error ?? "Could not send the code.");
       setSentTo(r.phone);
-      setKnown(Boolean(r.known));
       setShownCode(r.sent ? null : (r.shownCode ?? null));
       setWhy(r.sent ? null : (r.why ?? null));
       setCode("");
@@ -80,7 +77,7 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
     setBusy(true);
     setError(null);
     try {
-      const res = await post({ phone: sentTo, code, name });
+      const res = await post({ phone: sentTo, code });
       if (res.ok) return onDone();
       setError((await res.json()).error ?? "Sign-in failed.");
     } catch {
@@ -147,15 +144,7 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
               </div>
             )}
             <input id="code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="••••••" className={`${field} text-center font-mono text-2xl tracking-[0.5em]`} />
-            {!known && (
-              <>
-                <label htmlFor="name" className="block text-sm font-semibold text-white/80">
-                  Your name, as friends will see it
-                </label>
-                <input id="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className={field} />
-              </>
-            )}
-            <button disabled={busy || code.length !== 6 || (!known && !name.trim())} className={primary}>
+            <button disabled={busy || code.length !== 6} className={primary}>
               {busy ? "Checking…" : "Continue"}
             </button>
             <button

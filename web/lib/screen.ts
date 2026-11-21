@@ -70,7 +70,7 @@ export async function callerSays(db: DB, contact: Contact, screen: ScreenCall, t
       OWNER: contact.owner,
       CALL_SO_FAR: screen.transcript.map((t) => ({ from: t.from, text: t.text })),
       NOTE: turns >= 3 ? "This is the caller's third turn. Decide now: set done true with your best verdict." : undefined,
-    });
+    }, "screen_call");
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }

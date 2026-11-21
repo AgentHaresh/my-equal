@@ -40,7 +40,7 @@ export async function createJob(db: DB, s: Suggestion): Promise<Job> {
   let questions = FALLBACK_QUESTIONS;
   if (butlerStatus() === "online") {
     try {
-      const p = await askJson<{ brief?: string; questions?: string[] }>(PLAN_SYSTEM, { NEED: brief, CATEGORY: s.category ?? "other" });
+      const p = await askJson<{ brief?: string; questions?: string[] }>(PLAN_SYSTEM, { NEED: brief, CATEGORY: s.category ?? "other" }, "plan_calls");
       if (p.brief) brief = p.brief;
       if (Array.isArray(p.questions) && p.questions.length >= 2) questions = p.questions.slice(0, 4).map(String);
     } catch {
@@ -97,7 +97,7 @@ export async function providerSays(db: DB, job: Job, call: Call, text: string): 
       BRIEF: job.need,
       QUESTIONS: job.questions,
       CALL_SO_FAR: call.transcript.map((t) => ({ from: t.from, text: t.text })),
-    });
+    }, "provider_call");
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }

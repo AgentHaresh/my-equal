@@ -4,6 +4,7 @@ import { guessMe, parseWhatsApp, sendersOf } from "@/lib/whatsapp";
 import { learnRelation } from "@/lib/people";
 import { context, unauthorised } from "@/lib/auth";
 import { snapshot } from "@/lib/snapshot";
+import { allow, tooMany } from "@/lib/ratelimit";
 
 const KEEP = 500; // the most recent messages kept from one export
 const READ = 25; // how many of the newest are read for things to remember
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
   const ctx = context(request);
   if (!ctx) return unauthorised();
   const { db, user } = ctx;
+  const limit = allow("import", user.id, 20, 3600);
+  if (!limit.ok) return tooMany(limit, "Too many imports");
   const body = await request.json().catch(() => null);
   const text = typeof body?.text === "string" ? body.text : "";
   if (!text) return Response.json({ error: "Choose the exported chat file." }, { status: 400 });

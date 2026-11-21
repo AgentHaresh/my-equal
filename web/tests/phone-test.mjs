@@ -8,7 +8,9 @@ const SECRET = process.env.TEST_LOGIN_SECRET ?? "localtest";
 // Asking for a code texts a real phone when an SMS service is connected. This test uses made-up
 // numbers, so that part runs ONLY against a local server that has no SMS service.
 const smsConnected = (await (await fetch(B + "/api/auth")).json()).sms === true;
-const local = /localhost|127\.0\.0\.1/.test(B) && !smsConnected;
+// It also needs the demo switch (OTP_ONSCREEN_FALLBACK=on), which hands the code back instead of texting it.
+const health = await (await fetch(B + "/api/health")).json();
+const local = /localhost|127\.0\.0\.1/.test(B) && !smsConnected && health.signIn?.codeShownOnScreen === true;
 if (smsConnected) console.log("An SMS service is connected: skipping every step that would send a text.");
 const { check, finish } = checker();
 const auth = (body, cookie) => fetch(B + "/api/auth", { method: "POST", headers: { "Content-Type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });
@@ -63,14 +65,17 @@ if (local) {
   const p3 = number();
   res = await auth({ phone: p3 });
   const asked = await res.json();
-  check("asking for a code works, and says the number is new", res.status === 200 && asked.known === false && asked.phone === `+91${p3}`);
+  check("asking for a code works, and does not say whether the number has an account", res.status === 200 && asked.known === undefined && asked.phone === `+91${p3}`);
   check("with no SMS service connected, the code is shown instead of sent", asked.sent === false && /^\d{6}$/.test(asked.shownCode ?? ""));
   check("asking again straight away is refused", (await auth({ phone: p3 })).status === 429);
   const wrong = asked.shownCode === "000000" ? "000001" : "000000";
   check("a wrong code is refused", (await auth({ phone: p3, code: wrong, name: "Chitra" })).status === 401);
-  check("a new person must give a name", (await auth({ phone: p3, code: asked.shownCode })).status === 400);
-  // The right code was used up by that last try, as any checked code is.
-  check("a code works once only", (await auth({ phone: p3, code: asked.shownCode, name: "Chitra" })).status === 401);
+  res = await auth({ phone: p3, code: asked.shownCode });
+  const fresh = await res.json();
+  check("a new person with the right code is signed in, with a placeholder name that is not their number", res.status === 200 && fresh.user?.name === "New on Equal" && !fresh.user.name.includes(p3.slice(-4)));
+  const freshState = await (await fetch(B + "/api/state", { headers: { cookie: cookieOf(res) } })).json();
+  check("and is asked to set up their profile first", freshState.me?.needsSetup === true);
+  check("a code works once only", (await auth({ phone: p3, code: asked.shownCode })).status === 401);
 
   const p4 = number();
   const code = (await (await auth({ phone: p4 })).json()).shownCode;

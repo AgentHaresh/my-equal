@@ -67,7 +67,7 @@ export async function askEqual(db: DB, question: string): Promise<Answer> {
       PEOPLE: contacts.map((c) => ({ name: c.name, relation: c.relation, keep_close: c.close, last_spoke: c.lastContactAt.slice(0, 10) })),
       MEMORIES: scoredMemories.map(({ m }) => ({ with: name(m.contactId), about: m.about === "user" ? "the user" : name(m.contactId), fact: m.fact, when: m.when?.slice(0, 16) ?? null, status: m.status })),
       MESSAGES: messages.map((m, i) => ({ id: i, chat_with: name(m.contactId), from: m.from === "me" ? "me" : name(m.contactId), text: m.text.slice(0, 400), date: m.at.slice(0, 10) })),
-    });
+    }, "answer_question");
   } catch (e) {
     return { known: false, answer: "", sources: [], error: e instanceof Error ? e.message : String(e) };
   }

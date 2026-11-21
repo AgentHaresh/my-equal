@@ -1,3 +1,4 @@
+import { allow, clientAddress, tooMany } from "@/lib/ratelimit";
 import { findUser, save, spaceOf } from "@/lib/store";
 import { callerSays, findScreen, startScreen } from "@/lib/screen";
 import { speak, transcribe } from "@/lib/voice";
@@ -30,6 +31,9 @@ export async function GET(request: Request) {
 // POST (JSON) {id, text}        the caller types something
 // POST (form) id, audio         the caller says something
 export async function POST(request: Request) {
+  // Opened by link with no sign-in, and each use costs a model or speech call: limited per network address.
+  const limit = allow("link.call", clientAddress(request), 3000, 600);
+  if (!limit.ok) return tooMany(limit);
   const type = request.headers.get("content-type") ?? "";
   let id = "";
   let text = "";

@@ -2,6 +2,7 @@ import { DB, Contact, Message, User, contactFor, findUser, save, spaceOf, uid } 
 import { analyse, askJson, butlerStatus } from "./butler";
 import { dueForLearning, learnRelation } from "./people";
 import { notify } from "./push";
+import { count } from "./metrics";
 
 /**
  * Sending a message as the signed-in person: store it, deliver a copy to a real recipient,
@@ -15,6 +16,7 @@ export async function deliver(db: DB, user: User, contact: Contact, text: string
   const msg: Message = { id: uid(), contactId: contact.id, from: "me", text, at, voice, pair, replyTo: quoted?.id, file, forwarded: forwarded || undefined };
   db.messages.push(msg);
   contact.lastContactAt = at;
+  count("messages.sent");
 
   // A real person: deliver a copy into their space, where their own Equal reads it for them.
   const other = contact.userId ? findUser(contact.userId) : undefined;
@@ -48,8 +50,7 @@ export async function describeVoice(text: string): Promise<NonNullable<Message["
       `You are given the transcript of a voice note sent in India. Return ONLY JSON: {"language": string, "is_english": boolean, "english": string}
 "language" names the language or mix (for example "Telugu", "Hindi and English"). "is_english" is true only if it is entirely English.
 "english" is a faithful, natural English translation; if it is already English, repeat it unchanged. Do not add or drop anything.`,
-      { TRANSCRIPT: text }
-    );
+      { TRANSCRIPT: text }, "voice_note");
     return { language: r.language, english: r.is_english ? undefined : r.english };
   } catch {
     return {};
@@ -71,8 +72,7 @@ One or two sentences. Mention ABOUT naturally if it is given. Sound like a perso
         ABOUT: about || null,
         MY_PAST_MESSAGES: mine,
         THEIR_RECENT_MESSAGES: thread.filter((m) => m.from === "them").slice(-5).map((m) => m.text),
-      }
-    );
+      }, "draft_message");
     return { draft: (r.draft ?? "").trim() };
   } catch (e) {
     return { draft: "", error: e instanceof Error ? e.message : String(e) };

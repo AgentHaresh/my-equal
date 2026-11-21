@@ -1,6 +1,8 @@
 import { DB, findUser, root, save, uid } from "./store";
 import { deliver } from "./deliver";
 import { notify } from "./push";
+import { errorText, log } from "./log";
+import { count } from "./metrics";
 
 /**
  * Send later: a message written now and delivered at a chosen time. Until then it lives only in
@@ -57,7 +59,8 @@ export function sendDue(now = Date.now()) {
     const user = findUser(userId);
     for (const s of due.sort((a, b) => a.at.localeCompare(b.at))) {
       const contact = db.contacts.find((c) => c.id === s.contactId);
-      if (user && contact) void deliver(db, user, contact, s.text).catch(() => {});
+      count("scheduled.sent");
+      if (user && contact) void deliver(db, user, contact, s.text).catch((e) => log.error("scheduled.send_failed", { error: errorText(e) }));
     }
   }
 }
@@ -85,8 +88,8 @@ export function startScheduler() {
     try {
       sendDue();
       notifyDueReminders();
-    } catch {
-      /* try again on the next tick */
+    } catch (e) {
+      log.error("scheduler.tick_failed", { error: errorText(e) }); // tried again on the next tick
     }
   }, 5000);
 }

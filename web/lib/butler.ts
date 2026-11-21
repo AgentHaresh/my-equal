@@ -1,4 +1,6 @@
 import { DB, Contact, Message, parseWhen, todayIST, uid } from "./store";
+import { errorText, log } from "./log";
+import { modelCall } from "./metrics";
 
 /**
  * The butler reads a conversation and does two jobs:
@@ -78,6 +80,9 @@ export function activeModel() {
   return useFallback ? FALLBACK_MODEL : modelId();
 }
 
+/** How long a model call may take before it is given up on. A hung call must not hang the request. */
+const MODEL_TIMEOUT_MS = 45_000;
+
 function post(model: string, system: string, payload: unknown) {
   return fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -93,27 +98,64 @@ function post(model: string, system: string, payload: unknown) {
       ],
       response_format: { type: "json_object" },
     }),
+    signal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
   });
 }
 
-export async function askJson<T>(system: string, payload: unknown): Promise<T> {
-  let res = await post(activeModel(), system, payload);
-  if (!useFallback && (res.status === 404 || res.status === 400) && modelId() !== FALLBACK_MODEL) {
-    const body = await res.text();
-    if (/model/i.test(body)) {
-      console.warn(`Model "${modelId()}" was rejected; using ${FALLBACK_MODEL} instead.`);
-      useFallback = true;
-      res = await post(FALLBACK_MODEL, system, payload);
-    } else {
-      throw new Error(`OpenAI ${res.status}: ${body.slice(0, 300)}`);
-    }
+type Usage = { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+
+/** Pull the JSON answer out of a model reply, with a clear error when there is none (a refusal, an empty choice, cut-off text). */
+function readAnswer<T>(data: { choices?: { message?: { content?: string | null; refusal?: string | null } }[] }): T {
+  const message = data.choices?.[0]?.message;
+  if (!message?.content) throw new Error(message?.refusal ? "The model declined to answer." : "The model returned no answer.");
+  try {
+    return JSON.parse(message.content) as T;
+  } catch {
+    throw new Error("The model's answer was not valid JSON.");
   }
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = await res.json();
-  return JSON.parse(data.choices[0].message.content) as T;
+}
+
+/**
+ * Ask the model a question and get JSON back. Every call is timed and its token counts recorded
+ * under `purpose` (see lib/metrics.ts), and one log line is written. Neither holds any text.
+ */
+export async function askJson<T>(system: string, payload: unknown, purpose = "other"): Promise<T> {
+  const started = Date.now();
+  let model = activeModel();
+  let usage: Usage | undefined;
+  try {
+    let res = await post(model, system, payload);
+    if (!useFallback && (res.status === 404 || res.status === 400) && modelId() !== FALLBACK_MODEL) {
+      const body = await res.text();
+      if (/model/i.test(body)) {
+        log.warn("model.fallback", { configured: modelId(), using: FALLBACK_MODEL });
+        useFallback = true;
+        model = FALLBACK_MODEL;
+        res = await post(FALLBACK_MODEL, system, payload);
+      } else {
+        throw new Error(`OpenAI ${res.status}: ${body.slice(0, 300)}`);
+      }
+    }
+    if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    const data = await res.json();
+    usage = data.usage;
+    const answer = readAnswer<T>(data);
+    const ms = Date.now() - started;
+    modelCall({ purpose, ms, ok: true, model, promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens, cachedTokens: usage?.prompt_tokens_details?.cached_tokens });
+    log.info("model.call", { purpose, model, ms, prompt_tokens: usage?.prompt_tokens, completion_tokens: usage?.completion_tokens });
+    return answer;
+  } catch (e) {
+    const ms = Date.now() - started;
+    modelCall({ purpose, ms, ok: false, model });
+    log.error("model.call_failed", { purpose, model, ms, error: errorText(e) });
+    throw e instanceof Error && e.name === "TimeoutError" ? new Error("The model took too long to answer.") : e;
+  }
 }
 
 const KINDS = ["event", "promise", "worry", "preference"];
+
+/** The most facts one message may add. */
+const MAX_FACTS_PER_MESSAGE = 4;
 
 /** The most memories shown to the model alongside one new message. */
 export const KNOWN_LIMIT = 40;
@@ -154,7 +196,7 @@ export async function analyse(db: DB, contact: Contact, msg: Message, memoriesOn
       KNOWN_MEMORIES: known,
       CONVERSATION: thread.map((m) => ({ from: m.from, text: m.text })),
       NEWEST: { from: msg.from, text: msg.text },
-    });
+    }, "read_message");
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }
@@ -165,7 +207,8 @@ export async function analyse(db: DB, contact: Contact, msg: Message, memoriesOn
 
 export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysis) {
   const now = new Date().toISOString();
-  for (const m of a.memories ?? []) {
+  // One message can add only a few facts, however many the model (or a crafted message) proposes.
+  for (const m of (a.memories ?? []).slice(0, MAX_FACTS_PER_MESSAGE)) {
     if (!m?.fact) continue;
     const dup = db.memories.some(
       (x) => x.contactId === contact.id && x.fact.toLowerCase() === m.fact.toLowerCase()

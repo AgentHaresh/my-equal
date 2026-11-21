@@ -19,8 +19,14 @@ const bala = await signIn(B, `bala-${stamp}@example.com`, "Bala");
 
 let a = await asha.json("/api/state");
 check("a new account starts with the sample chats", a.contacts.some((c) => c.id === "ravi" && c.sample));
-check("each person sees the other in the people list", a.people.some((p) => p.id === bala.user.id));
-check("the people list does not expose emails", !JSON.stringify(a.people).includes("@"));
+// There is no directory. Nobody can see who else is on Equal.
+check("the state lists no other people", a.people === undefined && !JSON.stringify(a).includes(bala.user.id) && !JSON.stringify(a).includes("Bala"));
+// A chat starts only from an address I already know: the email (or number) they signed in with.
+let found = await asha.call("/api/chats", "POST", { email: `BALA-${stamp}@example.com` });
+check("a chat can be started with an email I know", found.status === 200 && (await found.json()).contacts.some((c) => c.userId === bala.user.id));
+check("an email that is not on Equal says so", (await asha.call("/api/chats", "POST", { email: `nobody-${stamp}@example.com` })).status === 404);
+check("something that is not an email is refused", (await asha.call("/api/chats", "POST", { email: "not-an-email" })).status === 400);
+check("I cannot start a chat with myself", (await asha.call("/api/chats", "POST", { email: `asha-${stamp}@example.com` })).status === 400);
 
 // Asha starts a chat with Bala and asks for help.
 a = await asha.json("/api/chats", "POST", { userId: bala.user.id });

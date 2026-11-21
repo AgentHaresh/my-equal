@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { DB, Message, root, uid } from "./store";
+import { openBytes, sealBytes } from "./storage";
 
 /**
  * Photos and files sent in a chat. The bytes are kept on the server's disk beside the chat data;
@@ -18,7 +19,7 @@ export const isPicture = (type: string) => INLINE.has(type);
 export function storeFile(bytes: Buffer, name: string, type: string): NonNullable<Message["file"]> {
   fs.mkdirSync(DIR, { recursive: true });
   const id = uid() + uid();
-  fs.writeFileSync(path.join(DIR, id), bytes);
+  fs.writeFileSync(path.join(DIR, id), sealBytes(bytes)); // sealed on disk when a data key is set
   // Keep the name readable but harmless: no path parts, no control characters.
   const clean = name.replace(/[\\/\u0000-\u001f]+/g, " ").trim().slice(0, 120) || "file";
   return { id, name: clean, type: type.slice(0, 100) || "application/octet-stream", size: bytes.length };
@@ -30,7 +31,7 @@ export function fileFor(db: DB, id: string): { file: NonNullable<Message["file"]
   const msg = db.messages.find((m) => m.file?.id === id && !m.deleted);
   if (!msg?.file) return null;
   try {
-    return { file: msg.file, bytes: fs.readFileSync(path.join(DIR, id)) };
+    return { file: msg.file, bytes: openBytes(fs.readFileSync(path.join(DIR, id))) };
   } catch {
     return null;
   }

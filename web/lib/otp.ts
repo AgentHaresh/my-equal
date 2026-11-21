@@ -9,9 +9,13 @@ import crypto from "crypto";
  * Sending SMS needs an account with an SMS service, set through the server's settings:
  *   FAST2SMS_KEY                                        (India), or
  *   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM  (worldwide)
- * With neither set, no SMS can be sent. The code is then handed back to the sign-in screen and
- * shown there with a plain notice. That keeps a demo usable, but it proves nothing about who
- * holds the number, so it must not be used for a real launch.
+ *
+ * Secure by default: if a text cannot be sent (no service, no credit, a number the service
+ * cannot reach), sign-in is refused. The code is never returned to the browser.
+ *
+ * For a demo with no SMS service, OTP_ONSCREEN_FALLBACK=on hands the code back to the sign-in
+ * screen, which shows it with a plain notice. That proves nothing about who holds the number,
+ * so it is off unless someone turns it on, and the health check reports when it is on.
  */
 
 const CODE_MINUTES = 5;
@@ -29,6 +33,11 @@ export function normalisePhone(raw: string): string | null {
   if (/^\+[1-9]\d{7,14}$/.test(digits)) return digits;
   if (/^91[6-9]\d{9}$/.test(digits)) return `+${digits}`;
   return null;
+}
+
+/** The demo switch: may a code be shown on the sign-in screen when it cannot be texted? Off unless turned on. */
+export function onScreenFallback(): boolean {
+  return (process.env.OTP_ONSCREEN_FALLBACK ?? "").trim().toLowerCase() === "on";
 }
 
 export function smsProvider(): "fast2sms" | "twilio" | null {
@@ -85,25 +94,27 @@ export async function requestCode(phone: string): Promise<Asked> {
   pending().set(phone, { hash: hashOf(code, salt), salt, expires: now + CODE_MINUTES * 60000, tries: 0 });
   if (pending().size > 5000) for (const [k, v] of pending()) if (v.expires < now) pending().delete(k);
 
-  if (!smsProvider()) return { ok: true, sent: false, shownCode: code };
+  if (!smsProvider()) {
+    if (onScreenFallback()) return { ok: true, sent: false, shownCode: code };
+    pending().delete(phone);
+    return { ok: false, status: 503, error: "Sign-in by phone is not available: no SMS service is set up on this server." };
+  }
   try {
     await sendSms(phone, code);
     return { ok: true, sent: true };
   } catch (e) {
     // The text could not be sent (no credit, the service is down, a number it cannot reach).
-    // Nobody should be locked out by that, so the code is shown on the sign-in screen instead,
-    // with the reason. Like the no-service case, this is for a demo, not a launch: set
-    // OTP_ONSCREEN_FALLBACK=off to refuse sign-in when a text cannot be sent.
-    if (process.env.OTP_ONSCREEN_FALLBACK === "off") {
-      pending().delete(phone);
-      return { ok: false, status: 502, error: e instanceof Error ? e.message : "Could not send the code." };
-    }
-    return { ok: true, sent: false, shownCode: code, why: e instanceof Error ? e.message : "The text could not be sent." };
+    // Sign-in is refused. Only with the demo switch on is the code shown on screen instead.
+    const why = e instanceof Error ? e.message : "The text could not be sent.";
+    if (onScreenFallback()) return { ok: true, sent: false, shownCode: code, why };
+    pending().delete(phone);
+    return { ok: false, status: 502, error: `We could not text you a code. ${why}` };
   }
 }
 
+
 /** Is this the code we sent to this number? A right code is used up; a wrong one counts against it. */
-export function checkCode(phone: string, code: string): { ok: true } | { ok: false; error: string } {
+export function checkCode(phone: string, code: string, keep = false): { ok: true } | { ok: false; error: string } {
   const p = pending().get(phone);
   if (!p || p.expires < Date.now()) {
     pending().delete(phone);
@@ -118,6 +129,6 @@ export function checkCode(phone: string, code: string): { ok: true } | { ok: fal
     p.tries++;
     return { ok: false, error: "That code is not right. Check it and try again." };
   }
-  pending().delete(phone);
+  if (!keep) pending().delete(phone); // kept only while a new person is asked for their name
   return { ok: true };
 }

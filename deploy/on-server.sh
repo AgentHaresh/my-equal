@@ -4,7 +4,7 @@ set -euo pipefail
 cd /opt/butler
 
 # Keep only the settings the app needs from the uploaded key file.
-grep -E '^(OPENAI_|GOOGLE_CLIENT_ID|FAST2SMS_KEY|TWILIO_)' .env > .env.keep || true
+grep -E '^(OPENAI_|GOOGLE_CLIENT_ID|FAST2SMS_KEY|TWILIO_|OTP_ONSCREEN_FALLBACK|PUBLIC_URL|METRICS_TOKEN|LOG_LEVEL)' .env > .env.keep || true
 mv .env.keep .env
 chmod 600 .env
 
@@ -15,6 +15,11 @@ if [ ! -f .server.env ]; then
     echo "TEST_LOGIN_SECRET=$(openssl rand -hex 16)"
   } > .server.env
   chmod 600 .server.env
+fi
+
+# The key that seals the data on disk. Made once and never replaced: without it the data cannot be read.
+if ! grep -q '^DATA_KEY=' .server.env; then
+  echo "DATA_KEY=$(openssl rand -hex 32)" >> .server.env
 fi
 
 tar -xzf /tmp/butler.tgz

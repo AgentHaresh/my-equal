@@ -1,7 +1,9 @@
-import fs from "fs";
-import path from "path";
+import crypto from "crypto";
 import { sampleSpace } from "./sample";
 import { poke } from "./live";
+import { loadEverything, saveEverything, storageInfo } from "./storage";
+import { errorText, log } from "./log";
+import { count, timing } from "./metrics";
 
 export type Contact = {
   id: string;
@@ -118,6 +120,8 @@ export type User = {
   picture?: string;
   createdAt: string;
   phone?: string; // set for people who signed in with their phone number, in international form
+  about?: string; // an optional line about themselves, shown with their profile
+  profileSetAt?: string; // when they set up their profile; until then the app asks them to
   test?: boolean; // created by the automated tests; never shown to real people
   seenAt?: string; // when their app last checked in; kept in memory, written with the next save
 };
@@ -134,10 +138,10 @@ export type DB = {
   gateLog: GateEntry[];
 };
 
-const FILE = path.join(process.cwd(), "data", "db.json");
 const DAY = 86400000;
 
-export const uid = () => Math.random().toString(36).slice(2, 10);
+/** A new id. Ids name accounts, calls and files and appear in links, so they come from the system's secure random source. */
+export const uid = () => crypto.randomBytes(6).toString("hex");
 
 // Dates are understood in Indian time, wherever the server happens to run.
 const IST_MS = 5.5 * 3600000;
@@ -174,26 +178,42 @@ const holder = globalThis as unknown as { __equalRoot?: Root };
 
 export function root(): Root {
   if (!holder.__equalRoot) {
+    let stored: Root | null;
     try {
-      const r = JSON.parse(fs.readFileSync(FILE, "utf8")) as Root;
-      holder.__equalRoot = r.users && r.spaces ? r : { users: [], spaces: {} };
+      stored = loadEverything() as Root | null;
+    } catch (e) {
+      // Data exists but cannot be read (a wrong key, a damaged file). Starting empty would
+      // overwrite it at the next save, so this is an error to be seen, never passed over.
+      log.error("store.load_failed", { error: errorText(e) });
+      throw new Error("The stored data could not be read. See the server log.");
+    }
+    if (!stored || !stored.users || !stored.spaces) {
+      log.info("store.first_start", storageInfo());
+      holder.__equalRoot = { users: [], spaces: {} };
+    } else {
+      holder.__equalRoot = stored;
       // Real accounts carry no made-up chats unless the person asked for the demo.
-      for (const u of holder.__equalRoot.users) {
-        const space = holder.__equalRoot.spaces[u.id];
+      for (const u of stored.users) {
+        const space = stored.spaces[u.id];
         if (space && !u.test && !space.demo) removeSamples(space);
       }
-    } catch {
-      holder.__equalRoot = { users: [], spaces: {} };
+      log.info("store.loaded", { ...storageInfo(), accounts: stored.users.length });
     }
   }
   return holder.__equalRoot;
 }
 
-/** Write the current state to disk. The argument is accepted for readability at call sites and ignored. */
+/**
+ * Write the current state to disk: only the rows that changed (see lib/storage.ts), then tell
+ * every open app. The argument is accepted for readability at call sites and ignored.
+ */
 export function save(_db?: DB) {
   void _db;
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(root()));
+  const started = Date.now();
+  const rows = saveEverything(root());
+  count("store.saves");
+  count("store.rows_written", rows);
+  timing("store.save_ms", Date.now() - started);
   poke(); // tell every open app that something changed
 }
 
@@ -235,6 +255,7 @@ export function upsertUser(profile: { email: string; name: string; picture?: str
   const r = root();
   const email = profile.email.trim().toLowerCase();
   let user = r.users.find((u) => u.email === email);
+  if (user && test && !user.test) throw new Error("The test login cannot sign in as a real account.");
   if (user) {
     user.name = profile.name || user.name;
     user.picture = profile.picture ?? user.picture;
@@ -247,19 +268,28 @@ export function upsertUser(profile: { email: string; name: string; picture?: str
   return user;
 }
 
+/** What a new phone account is called until the person sets up their profile. It is never their number. */
+export const NEW_PERSON = "New on Equal";
+
 /** The account for a phone number, created the first time that number signs in. */
 export function upsertPhoneUser(phone: string, name: string | undefined, test = false): User {
   const r = root();
   let user = r.users.find((u) => u.phone === phone);
+  if (user && test && !user.test) throw new Error("The test login cannot sign in as a real account.");
   if (user) {
     if (name) user.name = name;
   } else {
-    user = { id: uid(), email: "", phone, name: name || `+${phone.slice(1, 3)} ${phone.slice(3)}`, createdAt: new Date().toISOString(), ...(test ? { test: true } : {}) };
+    user = { id: uid(), email: "", phone, name: name || NEW_PERSON, createdAt: new Date().toISOString(), ...(test ? { test: true } : {}) };
     r.users.push(user);
   }
   spaceOf(user.id);
   save();
   return user;
+}
+
+export function findUserByEmail(email: string): User | undefined {
+  const e = email.trim().toLowerCase();
+  return e ? root().users.find((u) => u.email === e) : undefined;
 }
 
 export function findUserByPhone(phone: string): User | undefined {

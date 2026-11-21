@@ -1,5 +1,6 @@
-import { findUserByPhone, upsertPhoneUser, upsertUser, User } from "@/lib/store";
+import { upsertPhoneUser, upsertUser, User } from "@/lib/store";
 import { checkCode, normalisePhone, requestCode, smsProvider } from "@/lib/otp";
+import { allow, clientAddress, tooMany } from "@/lib/ratelimit";
 import { clearCookie, currentUser, googleClientId, sessionCookie, verifyGoogle } from "@/lib/auth";
 
 // GET: what the sign-in screen needs, and who is signed in (if anyone).
@@ -26,17 +27,29 @@ export async function POST(request: Request) {
     const phone = normalisePhone(body.phone);
     if (!phone) return Response.json({ error: "That does not look like a phone number. Enter all ten digits." }, { status: 400 });
     // The automated tests may sign in as a number without an SMS, with the server's test secret.
-    if (process.env.TEST_LOGIN_SECRET && body?.secret === process.env.TEST_LOGIN_SECRET) return signedIn(upsertPhoneUser(phone, body?.name ? String(body.name).slice(0, 60) : undefined, true));
+    if (process.env.TEST_LOGIN_SECRET && body?.secret === process.env.TEST_LOGIN_SECRET) {
+      try {
+        return signedIn(upsertPhoneUser(phone, body?.name ? String(body.name).slice(0, 60) : undefined, true));
+      } catch {
+        return Response.json({ error: "That number belongs to a real account." }, { status: 403 });
+      }
+    }
+    const from = clientAddress(request);
     if (typeof body?.code !== "string") {
+      // Each code is a text message that costs money, so one network address can ask for only so many.
+      const limit = allow("otp.request", from, 60, 3600);
+      if (!limit.ok) return tooMany(limit, "Too many codes asked for");
       const r = await requestCode(phone);
       if (!r.ok) return Response.json({ error: r.error }, { status: r.status });
-      // Is this a number we already know? The screen asks a new person for their name.
-      return Response.json({ sent: r.sent, shownCode: r.shownCode, why: r.why, phone, known: Boolean(findUserByPhone(phone)) });
+      // Nothing here says whether the number already has an account: that is told only after the code is proved.
+      return Response.json({ sent: r.sent, shownCode: r.shownCode, why: r.why, phone });
     }
+    const tries = allow("otp.verify", from, 200, 3600);
+    if (!tries.ok) return tooMany(tries, "Too many tries");
+    const name = typeof body?.name === "string" ? body.name.replace(/\s+/g, " ").trim().slice(0, 60) : "";
     const ok = checkCode(phone, body.code);
     if (!ok.ok) return Response.json({ error: ok.error }, { status: 401 });
-    const name = typeof body?.name === "string" ? body.name.replace(/\s+/g, " ").trim().slice(0, 60) : "";
-    if (!findUserByPhone(phone) && !name) return Response.json({ error: "Tell us your name to finish." }, { status: 400 });
+    // A new person is signed in straight away; the app then asks them to set up their profile.
     return signedIn(upsertPhoneUser(phone, name || undefined));
   }
 
@@ -54,7 +67,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Sign in with Google." }, { status: 400 });
   }
 
-  const user = upsertUser(profile, test);
+  let user: User;
+  try {
+    user = upsertUser(profile, test);
+  } catch {
+    return Response.json({ error: "That address belongs to a real account." }, { status: 403 });
+  }
   return Response.json(
     { user: { id: user.id, name: user.name, email: user.email, picture: user.picture } },
     { headers: { "Set-Cookie": sessionCookie(user.id) } }
