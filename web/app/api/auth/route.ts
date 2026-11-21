@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       const r = await requestCode(phone);
       if (!r.ok) return Response.json({ error: r.error }, { status: r.status });
       // Is this a number we already know? The screen asks a new person for their name.
-      return Response.json({ sent: r.sent, shownCode: r.shownCode, phone, known: Boolean(findUserByPhone(phone)) });
+      return Response.json({ sent: r.sent, shownCode: r.shownCode, why: r.why, phone, known: Boolean(findUserByPhone(phone)) });
     }
     const ok = checkCode(phone, body.code);
     if (!ok.ok) return Response.json({ error: ok.error }, { status: 401 });

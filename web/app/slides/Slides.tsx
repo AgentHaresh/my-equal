@@ -22,7 +22,7 @@ function Slide({ n, kicker, children }: { n: number; kicker: string; children: R
         <header className="flex items-center justify-between">
           <span className="flex items-center gap-3">
             <Dots />
-            <span className="text-[26px] font-semibold lowercase tracking-tight">my equal</span>
+            <span className="text-[26px] font-semibold tracking-tight">Equal</span>
           </span>
           <span className="text-[13px] font-semibold uppercase tracking-[0.22em] text-white/75">{kicker}</span>
         </header>
@@ -37,7 +37,7 @@ function Slide({ n, kicker, children }: { n: number; kicker: string; children: R
 }
 
 const h1 = "font-display text-[62px] leading-[1.04] text-equal-lime";
-const card = "rounded-[28px] border border-white/20 bg-equal-card/85 p-7";
+const card = "rounded-[28px] border border-white/15 bg-white/[0.06] p-7";
 const tag = "text-[13px] font-semibold uppercase tracking-[0.2em] text-equal-lime";
 
 export default function Slides() {
@@ -66,12 +66,12 @@ export default function Slides() {
   return (
     <div ref={root} className="deck" style={{ ["--k" as string]: k }}>
       <style>{`
-        .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; background: #0a4fb3; }
+        .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; background: #03050d; }
         .frame { height: 100dvh; width: 100vw; display: flex; align-items: center; justify-content: center; scroll-snap-align: start; overflow: hidden; }
-        .slide { width: ${W}px; height: ${H}px; flex: none; transform: scale(var(--k)); background: linear-gradient(180deg, #0c63d0 0%, #3a97f3 60%, #1a84f1 100%); }
+        .slide { width: ${W}px; height: ${H}px; flex: none; transform: scale(var(--k)); background: radial-gradient(760px 520px at 78% 30%, rgba(47,123,255,0.30), transparent 62%), radial-gradient(520px 380px at 8% 96%, rgba(206,248,44,0.09), transparent 60%), #050816; }
         @page { size: ${W}px ${H}px; margin: 0; }
         @media print {
-          html, body { background: #0c63d0 !important; }
+          html, body { background: #050816 !important; }
           .deck { height: auto; overflow: visible; }
           .frame { height: ${H}px; width: ${W}px; break-after: page; }
           .slide { transform: none; }
@@ -102,26 +102,30 @@ export default function Slides() {
       </Slide>
 
       <Slide n={2} kicker="What I built">
-        <h1 className={h1}>A second me, inside my messenger.</h1>
-        <p className="mt-4 max-w-[980px] text-[24px] leading-snug text-white/95">
+        <h1 className={`${h1} !text-[54px]`}>A second me, inside my messenger.</h1>
+        <p className="mt-3 max-w-[980px] text-[22px] leading-snug text-white/95">
           One job: make sure I never miss anything, never forget anything, and never lose touch with anyone.
         </p>
-        <div className="mt-8 grid grid-cols-4 gap-4">
+        <div className="mt-6 grid grid-cols-4 gap-4">
           {[
-            ["Remembers", "Plans, promises and worries from my chats, photos and imported WhatsApp chats. Ask it anything I've forgotten."],
-            ["Acts", "I say my car broke down. It offers help, phones three mechanics by voice, compares, and books when I approve."],
-            ["Keeps me close", "Learns who each person is to me and how often we talk. Tells me when that rhythm breaks."],
-            ["Keeps family safe", "Flags scam messages, answers unknown callers for my father, and tells me."],
+            ["Remembers", "Plans, promises and worries from my chats, photos and voice notes. Ask what it knows about anyone."],
+            ["Reminds, calls me", "Tap a message: Remind me. It works out the time and rings me ahead of it."],
+            ["Keeps me close", "Learns who each person is to me and how often we talk. Tells me when that breaks."],
+            ["Acts, and guards", "Phones three mechanics, compares, books when I approve. Flags scams aimed at my father."],
           ].map(([t, d]) => (
-            <div key={t} className={card}>
-              <div className="font-display text-[28px] leading-tight text-equal-lime">{t}</div>
+            <div key={t} className={`${card} !p-6`}>
+              <div className="font-display text-[27px] leading-tight text-equal-lime">{t}</div>
               <div className="mt-2 text-[17px] leading-snug text-white/90">{d}</div>
             </div>
           ))}
         </div>
-        <div className="mt-7 flex items-center gap-4">
-          <span className="rounded-full bg-equal-lime px-6 py-2.5 text-[20px] font-bold text-equal-ink">Live demo</span>
-          <span className="text-[20px] text-white/90">54-213-236-215.sslip.io · sign in with Google and try it now</span>
+        <p className="mt-4 max-w-[1100px] text-[16px] leading-snug text-white/75">
+          And a full messenger around it: phone sign-in, voice and video calls, photos and files, reply, edit, delete, reactions, forward, send later,
+          search, read receipts, notifications. It installs as an app.
+        </p>
+        <div className="mt-4 flex items-center gap-4">
+          <span className="rounded-full bg-equal-lime px-5 py-2 text-[18px] font-bold text-equal-ink">Live demo</span>
+          <span className="text-[18px] text-white/90">54-213-236-215.sslip.io · sign in with your phone number and try it now</span>
         </div>
       </Slide>
 
@@ -153,11 +157,11 @@ export default function Slides() {
           </div>
           <div>
             <div className={tag}>Private by design</div>
-            <div className="mt-1 text-white/90">Each person has their own space. My Equal reads my side; yours reads yours. I can make it forget anything.</div>
+            <div className="mt-1 text-white/90">Each person has their own space. The model never sees a whole history: 12 recent messages and 40 ranked facts. I can make it forget anything.</div>
           </div>
           <div>
             <div className={tag}>Built this weekend</div>
-            <div className="mt-1 text-white/90">Next.js on AWS, Google sign-in, seven end-to-end test suites passing on the live site.</div>
+            <div className="mt-1 text-white/90">Next.js on AWS. Fifteen end-to-end test suites pass on the live site. A message reaches the other screen in about 0.3 seconds.</div>
           </div>
         </div>
       </Slide>
@@ -192,7 +196,8 @@ export default function Slides() {
           <div className={`${card} !bg-white/10`}>
             <div className={tag}>What is simulated</div>
             <div className="mt-1 text-white/95">
-              The mechanics and the unknown caller are people on a link, not phone lines. My father&apos;s phone is a simple view. Everything else is real.
+              The mechanics and the unknown caller are people on a link, not phone lines. My father&apos;s phone is a simple view. Messages are not yet
+              end-to-end encrypted. The rest is real.
             </div>
           </div>
         </div>
@@ -206,7 +211,7 @@ export default function Slides() {
         <div className="mt-8 grid grid-cols-3 gap-5">
           {[
             ["Real phone lines", "The same call-around and call screening, on actual numbers, with Equal's existing call stack."],
-            ["Every platform, one memory", "Bring in more than WhatsApp exports, so my Equal knows my whole life, not one app's slice of it."],
+            ["Private at scale", "End-to-end encryption with the reading done on the phone, a real database in India, and groups."],
             ["Family guardian", "A child protects a parent's phone from scam calls and messages. The child is the paying user."],
           ].map(([t, d]) => (
             <div key={t} className={card}>

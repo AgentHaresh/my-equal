@@ -37,26 +37,9 @@ export function smsProvider(): "fast2sms" | "twilio" | null {
   return null;
 }
 
+/** Text the code. Fast2SMS's separate code-only route has been withdrawn, so the code goes as an ordinary short text. */
 async function sendSms(phone: string, code: string): Promise<void> {
-  const provider = smsProvider();
-  if (provider === "fast2sms") {
-    if (!phone.startsWith("+91")) throw new Error("This SMS service only reaches Indian numbers.");
-    const res = await fetch("https://www.fast2sms.com/dev/bulkV2", {
-      method: "POST",
-      headers: { authorization: process.env.FAST2SMS_KEY!, "Content-Type": "application/json" },
-      body: JSON.stringify({ route: "otp", variables_values: code, numbers: phone.slice(3) }),
-    });
-    const r = await res.json().catch(() => null);
-    if (!res.ok || r?.return === false) throw new Error("The SMS service refused to send the code.");
-  } else if (provider === "twilio") {
-    const sid = process.env.TWILIO_ACCOUNT_SID!;
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: "POST",
-      headers: { Authorization: "Basic " + Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64"), "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ To: phone, From: process.env.TWILIO_FROM!, Body: `${code} is your My Equal code. It works for ${CODE_MINUTES} minutes. Do not share it with anyone.` }),
-    });
-    if (!res.ok) throw new Error("The SMS service refused to send the code.");
-  }
+  await sendText(phone, `${code} is your Equal sign-in code. It works for ${CODE_MINUTES} minutes. Do not share it with anyone.`);
 }
 
 /** Send an ordinary text (not a code), for an invitation. Throws if it cannot be sent. */
@@ -68,10 +51,12 @@ export async function sendText(phone: string, message: string): Promise<void> {
     const res = await fetch("https://www.fast2sms.com/dev/bulkV2", {
       method: "POST",
       headers: { authorization: process.env.FAST2SMS_KEY!, "Content-Type": "application/json" },
-      body: JSON.stringify({ route: "q", message, language: "english", flash: 0, numbers: phone.slice(3) }),
+      body: JSON.stringify({ route: "q", message, numbers: phone.slice(3) }),
     });
     const r = await res.json().catch(() => null);
-    if (!res.ok || r?.return === false) throw new Error(typeof r?.message === "string" ? `The SMS service said: ${r.message}` : "The SMS service refused to send it.");
+    // The service answers with "message" as text or a list of texts.
+    const said = Array.isArray(r?.message) ? r.message.join(" ") : typeof r?.message === "string" ? r.message : "";
+    if (!res.ok || r?.return === false) throw new Error(said ? `The SMS service said: ${said}` : "The SMS service refused to send it.");
   } else {
     const sid = process.env.TWILIO_ACCOUNT_SID!;
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
@@ -85,7 +70,7 @@ export async function sendText(phone: string, message: string): Promise<void> {
 
 const hashOf = (code: string, salt: string) => crypto.createHash("sha256").update(salt + code).digest("hex");
 
-export type Asked = { ok: true; sent: boolean; shownCode?: string } | { ok: false; status: number; error: string };
+export type Asked = { ok: true; sent: boolean; shownCode?: string; why?: string } | { ok: false; status: number; error: string };
 
 /** Make a code for this number and send it. */
 export async function requestCode(phone: string): Promise<Asked> {
@@ -105,8 +90,15 @@ export async function requestCode(phone: string): Promise<Asked> {
     await sendSms(phone, code);
     return { ok: true, sent: true };
   } catch (e) {
-    pending().delete(phone);
-    return { ok: false, status: 502, error: e instanceof Error ? e.message : "Could not send the code." };
+    // The text could not be sent (no credit, the service is down, a number it cannot reach).
+    // Nobody should be locked out by that, so the code is shown on the sign-in screen instead,
+    // with the reason. Like the no-service case, this is for a demo, not a launch: set
+    // OTP_ONSCREEN_FALLBACK=off to refuse sign-in when a text cannot be sent.
+    if (process.env.OTP_ONSCREEN_FALLBACK === "off") {
+      pending().delete(phone);
+      return { ok: false, status: 502, error: e instanceof Error ? e.message : "Could not send the code." };
+    }
+    return { ok: true, sent: false, shownCode: code, why: e instanceof Error ? e.message : "The text could not be sent." };
   }
 }
 

@@ -28,6 +28,7 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
   const [name, setName] = useState("");
   const [known, setKnown] = useState(true);
   const [shownCode, setShownCode] = useState<string | null>(null);
+  const [why, setWhy] = useState<string | null>(null); // why the code could not be texted, if it was tried
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
       setSentTo(r.phone);
       setKnown(Boolean(r.known));
       setShownCode(r.sent ? null : (r.shownCode ?? null));
+      setWhy(r.sent ? null : (r.why ?? null));
       setCode("");
       setStep("code");
     } catch {
@@ -140,7 +142,8 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
             </label>
             {shownCode && (
               <div className="rounded-2xl border border-amber-300/40 bg-amber-300/10 px-3 py-2.5 text-sm text-amber-100">
-                No SMS service is connected to this server yet, so the code is shown here instead: <span className="font-mono text-lg font-bold tracking-widest text-white">{shownCode}</span>
+                {why ? `The code could not be texted (${why.replace(/\.$/, "")}), so it is shown here instead: ` : "No SMS service is connected to this server yet, so the code is shown here instead: "}
+                <span className="font-mono text-lg font-bold tracking-widest text-white">{shownCode}</span>
               </div>
             )}
             <input id="code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="••••••" className={`${field} text-center font-mono text-2xl tracking-[0.5em]`} />
