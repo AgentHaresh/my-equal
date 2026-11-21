@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { sampleSpace } from "./sample";
 
 export type Contact = {
   id: string;
@@ -138,41 +139,9 @@ export function rhythmDays(db: DB, contactId: string): number | null {
   return gaps[Math.floor(gaps.length / 2)];
 }
 
-function lastWeekday(target: number, from: Date) {
-  const d = new Date(from);
-  do d.setDate(d.getDate() - 1);
-  while (d.getDay() !== target);
-  d.setHours(11, 0, 0, 0);
-  return d;
-}
-
+/** The sample life a new account starts with. See sample.ts. */
 export function seed(): DB {
-  const now = Date.now();
-  const ago = (days: number) => new Date(now - days * DAY).toISOString();
-  const thursday = lastWeekday(4, new Date(now)).toISOString();
-  return {
-    contacts: [
-      { id: "anna", sample: true, name: "Anna", relation: "brother", close: true, lastContactAt: ago(22) },
-      { id: "ravi", sample: true, name: "Ravi", relation: "close friend", close: true, lastContactAt: ago(2) },
-      { id: "priya", sample: true, name: "Priya", relation: "sister", close: true, lastContactAt: ago(9) },
-      { id: "kiran", sample: true, name: "Kiran", relation: "colleague", close: false, lastContactAt: ago(1) },
-      { id: "unknown-me", sample: true, name: "+91 90000 12345", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true },
-      { id: "unknown-nanna", sample: true, name: "+91 98765 00000", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true, owner: "Nanna" },
-    ],
-    messages: [
-      { id: uid(), contactId: "anna", from: "them", text: "Thursday eye check-up undi ra, LV Prasad lo. Don't worry.", at: ago(22) },
-      { id: uid(), contactId: "anna", from: "me", text: "Ok Anna, tell me how it goes.", at: ago(22) },
-      { id: uid(), contactId: "ravi", from: "them", text: "Interview went okay I think. Results next week.", at: ago(2) },
-    ],
-    memories: [
-      { id: uid(), contactId: "anna", fact: "Eye check-up at LV Prasad", kind: "event", when: thursday, status: "open", createdAt: ago(22), sample: true },
-      { id: uid(), contactId: "ravi", fact: "Waiting for interview results", kind: "worry", when: null, status: "open", createdAt: ago(2), sample: true },
-    ],
-    suggestions: [],
-    dismissed: [],
-    gateLog: [],
-    jobs: [],
-  };
+  return sampleSpace();
 }
 
 /** Everything the server knows: the people who have signed in, and one private space each. */

@@ -29,6 +29,7 @@ MEMORIES: facts from the NEWEST message only that are worth remembering later ab
 appointments, exams, interviews, trips, health worries, promises made by either side. "fact" is short and in English. "about" is "user" when the fact concerns the user's own life, and "contact" when it concerns the contact.
 "when" is an ISO date (YYYY-MM-DD) if the message places it in time, or YYYY-MM-DDTHH:MM (24-hour, Indian time) if it also gives a time of day. Use TODAY and WEEKDAY to resolve words like Thursday, tomorrow or tonight. Otherwise null.
 The user's own plans and promises matter most, because they must not be forgotten: "I have a client meeting at 4", "I'll send you the deck by Friday", "I need to renew the insurance this week". Record each with "about": "user", and use kind "promise" when the user said they would do something for someone.
+A problem the user is having right now (a breakdown, an illness, being stuck, something not working) is NOT a plan or a promise. If you record it at all, give it "when": null, so it is never shown as a reminder. Do not repeat a plan that KNOWN_MEMORIES already holds in other words.
 Do not repeat anything already listed in KNOWN_MEMORIES. Small talk produces no memories.
 
 RESOLVED: ids from KNOWN_MEMORIES that the newest message shows are finished or answered.
@@ -118,7 +119,7 @@ export async function analyse(db: DB, contact: Contact, msg: Message, memoriesOn
   if (butlerStatus() !== "online") return butlerStatus();
   const thread = db.messages.filter((m) => m.contactId === contact.id).slice(-12);
   const known = db.memories
-    .filter((m) => m.contactId === contact.id && m.status === "open")
+    .filter((m) => m.status === "open" && (m.contactId === contact.id || (m.about === "user" && m.when)))
     .map((m) => ({ id: m.id, fact: m.fact, when: m.when }));
   let a: Analysis;
   try {
@@ -149,6 +150,20 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
     if (dup) continue;
     const parsed = m.when ? parseWhen(m.when) : null;
     const when = parsed?.iso ?? null;
+    // The same plan said twice in different words (for the same day) is kept once. Names and
+    // everyday verbs are ignored, so "send Ravi the deck" is not confused with "send Ravi the shortlist".
+    const ignore = new Set(["send", "call", "with", "from", "that", "this", "have", "will", "about", "today", "tomorrow", "need", "needs", "promised", ...db.contacts.flatMap((c) => c.name.toLowerCase().split(/\s+/))]);
+    const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !ignore.has(w)));
+    const mine = words(m.fact);
+    const same = when
+      ? db.memories.some((x) => {
+          if (x.status !== "open" || !x.when || todayIST(Date.parse(x.when)) !== todayIST(Date.parse(when))) return false;
+          const theirs = words(x.fact);
+          const shared = [...theirs].filter((w) => mine.has(w)).length;
+          return shared >= 2 && shared / Math.min(theirs.size, mine.size) >= 0.6;
+        })
+      : false;
+    if (same) continue;
     db.memories.push({
       id: uid(),
       contactId: contact.id,

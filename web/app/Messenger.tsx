@@ -128,7 +128,9 @@ export default function Messenger({ role }: Props) {
     };
   }, [refresh, auth.signedIn]);
 
-  const current = selected || snap?.contacts[0]?.id || "";
+  // Most recent conversation first, as any messenger lists them.
+  const ordered = snap ? [...snap.contacts].sort((a, b) => b.lastContactAt.localeCompare(a.lastContactAt)) : [];
+  const current = selected || ordered[0]?.id || "";
   const contact = snap?.contacts.find((c) => c.id === current);
   const thread = snap?.messages.filter((m) => m.contactId === current) ?? [];
   const threadLength = thread.length;
@@ -306,7 +308,10 @@ export default function Messenger({ role }: Props) {
   const me = snap.me;
   const offers = snap.suggestions.filter((s) => s.status === "new");
   const reminders = offers.filter((s) => s.type === "reminder");
-  const others = offers.filter((s) => s.type !== "reminder");
+  const rank: Record<string, number> = { guardian: 0, intent: 1, keep_close: 2, follow_up: 3 };
+  const others = offers.filter((s) => s.type !== "reminder").sort((a, b) => (rank[a.type] ?? 9) - (rank[b.type] ?? 9));
+  // An offer waiting for an answer, a call-around in progress or a family alert is "right now" and leads the panel.
+  const urgent = snap.jobs.some((j) => j.status !== "booked") || others.some((s) => s.type === "guardian" || s.type === "intent");
   const inlineOffer = offers.find((s) => s.type === "intent" && s.contactId === current);
   const quiet = new Map(snap.gateLog.filter((g) => !g.spoke).map((g) => [g.messageId, g.reason]));
   const memories = snap.memories.filter((m) => m.contactId === current && m.status === "open");
@@ -337,7 +342,7 @@ export default function Messenger({ role }: Props) {
           <aside className={`${panel} ${show("chats")} w-full shrink-0 flex-col overflow-hidden md:flex md:w-72`}>
             <div className="px-5 pb-2 pt-4 font-display text-2xl text-equal-lime">Chats</div>
             <ul className="flex-1 overflow-y-auto px-2 pb-2">
-              {snap.contacts.map((c) => {
+              {ordered.map((c) => {
                 const last = snap.messages.filter((m) => m.contactId === c.id && m.from !== "butler").at(-1);
                 const drifting = c.close && now - new Date(c.lastContactAt).getTime() > 14 * DAY;
                 const active = c.id === current;
@@ -428,7 +433,7 @@ export default function Messenger({ role }: Props) {
                       </span>
                     )}
                     {m.text}
-                    <span className={`ml-2 text-[10px] ${mine ? "text-white/70" : "text-equal-ink/40"}`}>{clock(m.at, now)}</span>
+                    <span className={`ml-2 whitespace-nowrap text-[10px] ${mine ? "text-white/70" : "text-equal-ink/40"}`}>{clock(m.at, now)}</span>
                     {m.voice?.english && <span className={`mt-1 block border-t pt-1 text-[13px] italic ${mine ? "border-white/25 text-white/85" : "border-blue-100 text-equal-ink/70"}`}>In English: {m.voice.english}</span>}
                   </div>
                   {isMe && m.scam && (
@@ -504,7 +509,7 @@ export default function Messenger({ role }: Props) {
             </div>
             {snap.butler !== "online" && <p className="-mt-3 text-xs text-rose-200">{snap.butler}</p>}
 
-            <section className="space-y-2">
+            <section className="order-1 space-y-2">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -556,7 +561,7 @@ export default function Messenger({ role }: Props) {
             </section>
 
             {reminders.length > 0 && (
-              <section className="space-y-2">
+              <section className="order-3 space-y-2">
                 <h2 className={`${label} text-white/70`}>Don&apos;t forget</h2>
                 {reminders.map((s) => (
                   <div key={s.id} className="rounded-2xl border-l-4 border-equal-lime bg-white/10 p-3">
@@ -575,9 +580,12 @@ export default function Messenger({ role }: Props) {
               </section>
             )}
 
-            <section className="space-y-2">
-              <h2 className={`${label} text-white/70`}>For you</h2>
+            <section className={`space-y-2 ${urgent ? "order-2" : "order-4"}`}>
+              <h2 className={`${label} ${urgent ? "text-equal-lime" : "text-white/70"}`}>{urgent ? "Right now" : "For you"}</h2>
               {others.length === 0 && snap.jobs.length === 0 && <p className="text-sm text-white/70">Nothing needs you right now.</p>}
+              {[...snap.jobs].reverse().map((j) => (
+                <JobCard key={j.id} job={j} onBook={bookProvider} />
+              ))}
               {others.map((s) => (
                 <div key={s.id} className={`rounded-2xl border p-3 ${s.type === "guardian" ? "border-rose-300 bg-rose-600" : "border-white/20 bg-white/10"}`}>
                   <div className={`${label} ${s.type === "guardian" ? "text-white" : "text-equal-lime"}`}>
@@ -600,13 +608,10 @@ export default function Messenger({ role }: Props) {
                   </div>
                 </div>
               ))}
-              {[...snap.jobs].reverse().map((j) => (
-                <JobCard key={j.id} job={j} onBook={bookProvider} />
-              ))}
             </section>
 
             {contact && (
-              <section className="space-y-2">
+              <section className="order-5 space-y-2">
                 <h2 className={`${label} text-white/70`}>What I remember about {contact.name}</h2>
                 {!contact.unknown && (
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -648,7 +653,7 @@ export default function Messenger({ role }: Props) {
               </section>
             )}
 
-            <section className="space-y-2 border-t border-white/20 pt-4">
+            <section className="order-6 space-y-2 border-t border-white/20 pt-4">
               <h2 className={`${label} text-white/70`}>Bring in a WhatsApp chat</h2>
               <p className="text-xs text-white/70">In WhatsApp: open a chat, then More, Export chat, Without media. Choose the .txt file here.</p>
               <input
@@ -669,7 +674,7 @@ export default function Messenger({ role }: Props) {
               />
             </section>
 
-            <section className="mt-auto space-y-1.5 border-t border-white/20 pt-4 text-xs text-white/70">
+            <section className="order-7 mt-auto space-y-1.5 border-t border-white/20 pt-4 text-xs text-white/70">
               <h2 className={`${label} text-white/70`}>Try the family scam shield</h2>
               <a href={`/ring?u=${me?.id ?? ""}&c=unknown-nanna`} target="_blank" className="block underline">
                 Call Nanna as a stranger

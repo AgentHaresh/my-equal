@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { seed, uid, Message } from "./store";
+import { DB, uid, Message } from "./store";
 import { analyse, activeModel } from "./butler";
 import { checkScam } from "./scam";
 
@@ -26,9 +26,26 @@ export type Results = {
   scam: { caught: number; scamTotal: number; leftAlone: number; genuineTotal: number; outcomes: Outcome[] };
 };
 
+/** An empty space with one friend and one unknown number, so results never depend on the sample chats. */
+function bare(): DB {
+  const at = new Date().toISOString();
+  return {
+    contacts: [
+      { id: "ravi", name: "Ravi", relation: "close friend", close: true, lastContactAt: at },
+      { id: "unknown-me", name: "+91 90000 12345", relation: "not in contacts", close: false, lastContactAt: at, unknown: true },
+    ],
+    messages: [],
+    memories: [],
+    suggestions: [],
+    dismissed: [],
+    gateLog: [],
+    jobs: [],
+  };
+}
+
 /** Should the assistant offer help? Uses a fresh space, exactly as a new chat would. */
 async function gateCase(c: Case): Promise<Outcome> {
-  const db = seed();
+  const db = bare();
   const contact = db.contacts.find((x) => x.id === "ravi")!;
   const msg: Message = { id: uid(), contactId: contact.id, from: "me", text: c.text, at: new Date().toISOString() };
   db.messages.push(msg);
@@ -42,7 +59,7 @@ async function gateCase(c: Case): Promise<Outcome> {
 
 /** Should the message be flagged as a scam? */
 async function scamCase(c: Case): Promise<Outcome> {
-  const db = seed();
+  const db = bare();
   const contact = db.contacts.find((x) => x.id === "unknown-me")!;
   const msg: Message = { id: uid(), contactId: contact.id, from: "them", text: c.text, at: new Date().toISOString() };
   db.messages.push(msg);
