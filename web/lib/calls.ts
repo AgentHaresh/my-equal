@@ -15,7 +15,7 @@ Given the customer's NEED and CATEGORY, return ONLY JSON:
 "brief" is one sentence describing the customer's situation to the provider, with no personal details beyond what the need states.
 "questions" are exactly three short questions covering: whether they can help now, the cost, and how soon.`;
 
-const CALL_SYSTEM = `You are Butler, an AI assistant on a call with a service provider in India, calling on behalf of a customer.
+const CALL_SYSTEM = `You are Equal, an AI assistant on a call with a service provider in India, calling on behalf of a customer.
 You have ALREADY introduced yourself as an AI assistant. Never claim to be human. If asked, say you are an AI calling for a customer.
 
 Your goal is to get answers to QUESTIONS. Rules:
@@ -77,7 +77,7 @@ export function openCall(job: Job, call: Call) {
   call.status = "active";
   call.transcript.push({
     from: "butler",
-    text: `Hello! I'm Butler, an AI assistant calling on behalf of a customer. ${job.need} ${job.questions[0]}`,
+    text: `Hello! I'm Equal, an AI assistant calling on behalf of a customer. ${job.need} ${job.questions[0]}`,
     at: new Date().toISOString(),
   });
 }

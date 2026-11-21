@@ -61,25 +61,25 @@ export default function CallScreen() {
     }
   }
 
-  if (!view) return <div className="flex h-screen items-center justify-center bg-stone-900 text-stone-300">Connecting…</div>;
+  if (!view) return <div className="flex h-screen items-center justify-center text-white/80">Connecting…</div>;
   if (!view.transcript)
     return (
-      <div className="flex h-screen items-center justify-center bg-stone-900 px-6 text-center text-stone-300">
+      <div className="flex h-screen items-center justify-center px-6 text-center text-white/80">
         {view.error ?? "This call link is not valid."}
       </div>
     );
 
   const over = view.status === "done";
   return (
-    <div className="mx-auto flex h-screen max-w-md flex-col bg-stone-900 text-white">
-      <header className="border-b border-stone-700 px-5 py-4">
+    <div className="mx-auto flex h-screen max-w-md flex-col text-white">
+      <header className="border-b border-white/20 px-5 py-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-500 text-lg font-semibold text-stone-900">B</span>
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-equal-lime text-xl font-bold lowercase text-equal-ink">e</span>
           <div>
-            <div className="font-semibold">Butler</div>
-            <div className="text-xs text-stone-400">AI assistant · calling on behalf of a customer</div>
+            <div className="font-display text-xl text-equal-lime">Equal</div>
+            <div className="text-xs text-white/75">AI assistant · calling on behalf of a customer</div>
           </div>
-          <span className={`ml-auto rounded-full px-2 py-0.5 text-xs ${over ? "bg-stone-700 text-stone-300" : "bg-emerald-600"}`}>
+          <span className={`ml-auto shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs ${over ? "bg-white/20 text-white/80" : "bg-equal-lime font-semibold text-equal-ink"}`}>
             {over ? "ended" : "on call"}
           </span>
         </div>
@@ -88,29 +88,29 @@ export default function CallScreen() {
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
         {view.transcript.map((t, i) => (
           <div key={i} className={`flex ${t.from === "provider" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[82%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[15px] ${t.from === "provider" ? "bg-emerald-700" : "bg-stone-700"}`}>
+            <div className={`max-w-[82%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[15px] ${t.from === "provider" ? "bg-white text-equal-ink" : "border border-white/20 bg-equal-card"}`}>
               {t.text}
             </div>
           </div>
         ))}
-        {sending && <div className="text-sm text-stone-400">Butler is replying…</div>}
-        {view.error && <div className="rounded-lg bg-rose-900/60 px-3 py-2 text-xs">Butler could not reply: {view.error}</div>}
+        {sending && <div className="text-sm text-white/70">Equal is replying…</div>}
+        {view.error && <div className="rounded-lg bg-rose-900/60 px-3 py-2 text-xs">Equal could not reply: {view.error}</div>}
         <div ref={endRef} />
       </div>
 
       {view.outcome === "chosen" && (
-        <div className="m-4 rounded-xl bg-emerald-600 px-4 py-4 text-center">
+        <div className="m-4 rounded-2xl bg-equal-lime px-4 py-4 text-center text-equal-ink">
           <div className="text-lg font-semibold">Confirmed</div>
           <div className="text-sm">The customer chose you. Please go ahead.</div>
         </div>
       )}
       {view.outcome === "not_chosen" && (
-        <div className="m-4 rounded-xl bg-stone-700 px-4 py-4 text-center text-sm">
+        <div className="m-4 rounded-2xl border border-white/20 bg-equal-card px-4 py-4 text-center text-sm">
           The customer went with another option this time. Thank you for your time.
         </div>
       )}
       {view.outcome === "pending" && over && (
-        <div className="m-4 rounded-xl bg-stone-800 px-4 py-4 text-center text-sm text-stone-300">
+        <div className="m-4 rounded-2xl border border-white/20 bg-equal-card px-4 py-4 text-center text-sm text-white/85">
           Thank you. The customer is deciding. This page will update.
         </div>
       )}
@@ -121,16 +121,16 @@ export default function CallScreen() {
             e.preventDefault();
             send();
           }}
-          className="flex gap-2 border-t border-stone-700 px-4 py-3"
+          className="flex gap-2 border-t border-white/20 px-4 py-3"
         >
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Type your reply"
             autoFocus
-            className="flex-1 rounded-full bg-stone-800 px-4 py-2.5 outline-none placeholder:text-stone-500 focus:ring-1 focus:ring-amber-500"
+            className="flex-1 rounded-full bg-white px-4 py-2.5 text-equal-ink outline-none placeholder:text-equal-ink/40 focus:ring-2 focus:ring-equal-lime"
           />
-          <button disabled={sending || !draft.trim()} className="rounded-full bg-amber-500 px-5 py-2.5 font-medium text-stone-900 disabled:opacity-40">
+          <button disabled={sending || !draft.trim()} className="rounded-full bg-equal-lime px-5 py-2.5 font-semibold text-equal-ink disabled:opacity-40">
             Send
           </button>
         </form>

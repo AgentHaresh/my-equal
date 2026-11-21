@@ -23,6 +23,7 @@ export type Memory = {
   when: string | null; // ISO date the fact is about, if any
   status: "open" | "done";
   createdAt: string;
+  about?: "user" | "contact"; // whose life the fact concerns
   sample?: boolean;
 };
 export type Suggestion = {
@@ -99,18 +100,18 @@ export function seed(): DB {
   const thursday = lastWeekday(4, new Date(now)).toISOString();
   return {
     contacts: [
-      { id: "amma", name: "Amma", relation: "mother", close: true, lastContactAt: ago(22) },
+      { id: "anna", name: "Anna", relation: "brother", close: true, lastContactAt: ago(22) },
       { id: "ravi", name: "Ravi", relation: "close friend", close: true, lastContactAt: ago(2) },
       { id: "priya", name: "Priya", relation: "sister", close: true, lastContactAt: ago(9) },
       { id: "kiran", name: "Kiran", relation: "colleague", close: false, lastContactAt: ago(1) },
     ],
     messages: [
-      { id: uid(), contactId: "amma", from: "them", text: "Thursday eye check-up undi nanna, LV Prasad lo. Don't worry.", at: ago(22) },
-      { id: uid(), contactId: "amma", from: "me", text: "Ok Amma, tell me how it goes.", at: ago(22) },
+      { id: uid(), contactId: "anna", from: "them", text: "Thursday eye check-up undi ra, LV Prasad lo. Don't worry.", at: ago(22) },
+      { id: uid(), contactId: "anna", from: "me", text: "Ok Anna, tell me how it goes.", at: ago(22) },
       { id: uid(), contactId: "ravi", from: "them", text: "Interview went okay I think. Results next week.", at: ago(2) },
     ],
     memories: [
-      { id: uid(), contactId: "amma", fact: "Eye check-up at LV Prasad", kind: "event", when: thursday, status: "open", createdAt: ago(22), sample: true },
+      { id: uid(), contactId: "anna", fact: "Eye check-up at LV Prasad", kind: "event", when: thursday, status: "open", createdAt: ago(22), sample: true },
       { id: uid(), contactId: "ravi", fact: "Waiting for interview results", kind: "worry", when: null, status: "open", createdAt: ago(2), sample: true },
     ],
     suggestions: [],
@@ -149,7 +150,7 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
     if (!c.close || days < 14) continue;
     drifting.add(c.id);
     const recent = db.memories
-      .filter((m) => m.contactId === c.id && m.status === "open")
+      .filter((m) => m.contactId === c.id && m.status === "open" && m.about !== "user")
       .sort((a, b) => (b.when ?? b.createdAt).localeCompare(a.when ?? a.createdAt))[0];
     out.push({
       id: `kc-${c.id}`,
@@ -162,9 +163,12 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
     });
   }
   for (const m of db.memories) {
-    if (m.status !== "open" || !m.when || drifting.has(m.contactId)) continue;
+    // Only things that happened to the contact are worth asking them about.
+    if (m.status !== "open" || !m.when || m.about === "user" || drifting.has(m.contactId)) continue;
     const t = new Date(m.when).getTime();
-    if (t > now || now - t > 7 * DAY) continue;
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    if (t >= today.getTime() || now - t > 7 * DAY) continue; // the day must be over before asking how it went
     const c = db.contacts.find((x) => x.id === m.contactId);
     if (!c) continue;
     out.push({

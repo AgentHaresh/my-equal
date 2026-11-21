@@ -40,18 +40,18 @@ export default function JobCard({ job, onBook }: { job: Job; onBook: (jobId: str
   const anyQuote = job.calls.some((c) => c.status === "done" && c.quote);
 
   return (
-    <div className="rounded-xl border border-amber-300 bg-white p-3 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+    <div className="rounded-2xl bg-white p-3 text-equal-ink shadow-lg">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-equal-sky">
         {booked ? "Booked" : job.status === "ready" ? "Options ready" : "Calling around"}
       </div>
-      <div className="mt-0.5 text-sm text-stone-700">{job.need}</div>
+      <div className="mt-0.5 text-sm text-equal-ink/80">{job.need}</div>
 
       <div className="mt-2 space-y-2">
         {job.calls.map((c) => {
           const url = `${origin}/call?id=${c.id}`;
           const recommended = job.recommendation?.callId === c.id;
           const chosen = job.bookedCallId === c.id;
-          const tone = chosen ? "border-emerald-500 bg-emerald-50" : recommended && !booked ? "border-amber-400 bg-amber-50" : "border-stone-200";
+          const tone = chosen ? "border-equal-sky bg-blue-50" : recommended && !booked ? "border-equal-lime bg-equal-lime/25" : "border-blue-100";
           return (
             <div key={c.id} className={`rounded-lg border p-2 ${tone}`}>
               <div className="flex items-center gap-2">
@@ -59,18 +59,18 @@ export default function JobCard({ job, onBook }: { job: Job; onBook: (jobId: str
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{c.label}</span>
-                    {recommended && !booked && <span className="rounded bg-amber-500 px-1.5 text-[10px] font-semibold text-white">PICK</span>}
-                    {chosen && <span className="rounded bg-emerald-600 px-1.5 text-[10px] font-semibold text-white">BOOKED</span>}
+                    {recommended && !booked && <span className="rounded bg-equal-lime px-1.5 text-[10px] font-bold text-equal-ink">PICK</span>}
+                    {chosen && <span className="rounded bg-equal-sky px-1.5 text-[10px] font-semibold text-white">BOOKED</span>}
                   </div>
                   {c.status === "waiting" && !booked && (
                     <div className="text-xs text-stone-500">
                       Waiting to be answered.{" "}
-                      <a href={url} target="_blank" className="text-emerald-800 underline">
+                      <a href={url} target="_blank" className="text-equal-sky underline">
                         Open call
                       </a>
                     </div>
                   )}
-                  {c.status === "active" && <div className="text-xs text-emerald-700">On the call now…</div>}
+                  {c.status === "active" && <div className="text-xs font-medium text-equal-sky">On the call now…</div>}
                   {c.status === "done" && (
                     <div className="text-xs text-stone-600">
                       <span className="font-medium text-stone-800">{quoteLine(c)}</span>
@@ -82,7 +82,7 @@ export default function JobCard({ job, onBook }: { job: Job; onBook: (jobId: str
                 {c.status === "done" && c.quote && c.quote.available !== false && !booked && (
                   <button
                     onClick={() => onBook(job.id, c.id)}
-                    className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium ${recommended ? "bg-emerald-800 text-white" : "border border-stone-300 text-stone-700"}`}
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${recommended ? "bg-equal-ink text-white" : "border border-blue-200 text-equal-ink"}`}
                   >
                     Book
                   </button>
@@ -94,7 +94,7 @@ export default function JobCard({ job, onBook }: { job: Job; onBook: (jobId: str
                   <div className="mt-1 space-y-0.5 text-xs text-stone-600">
                     {c.transcript.map((t, i) => (
                       <div key={i}>
-                        <span className="font-medium">{t.from === "butler" ? "Butler" : c.label}:</span> {t.text}
+                        <span className="font-medium">{t.from === "butler" ? "Equal" : c.label}:</span> {t.text}
                       </div>
                     ))}
                   </div>

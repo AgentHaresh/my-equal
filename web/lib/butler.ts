@@ -8,12 +8,12 @@ import { DB, Contact, Message, uid } from "./store";
  * The model interprets; plain code stores state and applies the result.
  */
 
-const SYSTEM = `You are a discreet personal butler built into a messaging app used in India.
+const SYSTEM = `You are Equal, a discreet personal AI assistant built into the Equal messaging app used in India.
 You read one conversation between the USER ("me") and a contact ("them"). Messages may mix English with Hindi or Telugu.
 
 Return ONLY a JSON object with this shape:
 {
-  "memories": [{"fact": string, "kind": "event"|"promise"|"worry"|"preference", "when": string|null}],
+  "memories": [{"fact": string, "about": "user"|"contact", "kind": "event"|"promise"|"worry"|"preference", "when": string|null}],
   "resolved": [string],
   "intent": null | {
     "need": string,
@@ -26,7 +26,7 @@ Return ONLY a JSON object with this shape:
 }
 
 MEMORIES: facts from the NEWEST message only that are worth remembering later about the contact or the user:
-appointments, exams, interviews, trips, health worries, promises made by either side. "fact" is short and in English.
+appointments, exams, interviews, trips, health worries, promises made by either side. "fact" is short and in English. "about" is "user" when the fact concerns the user's own life, and "contact" when it concerns the contact.
 "when" is an ISO date (YYYY-MM-DD) if the message places it in time, using TODAY to resolve words like Thursday or tomorrow; otherwise null.
 Do not repeat anything already listed in KNOWN_MEMORIES. Small talk produces no memories.
 
@@ -40,11 +40,11 @@ INTENT: fill only if the NEWEST message is from "me" and reveals a practical pro
 "speak" must be false when the user is only venting or sad, when the problem is someone else's to handle,
 when it is hypothetical or in the past, or when interrupting would be tactless (grief, a fight, bad news).
 "reason" explains the decision in one short sentence.
-"offer" is what the butler would say to the user, privately, in one warm short sentence starting with a verb phrase like "Want me to".
+"offer" is what you would say to the user, privately, in one warm short sentence starting with a verb phrase like "Want me to".
 If there is no practical problem at all, "intent" is null.`;
 
 type Analysis = {
-  memories?: { fact: string; kind: string; when: string | null }[];
+  memories?: { fact: string; about?: string; kind: string; when: string | null }[];
   resolved?: string[];
   intent?: null | {
     need: string;
@@ -67,15 +67,23 @@ export function butlerStatus() {
   return "online";
 }
 
-export async function askJson<T>(system: string, payload: unknown): Promise<T> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+/** Known-good model, used if the configured name is rejected, so a typo in the key file cannot take the demo down. */
+const FALLBACK_MODEL = "gpt-6.1-terra";
+let useFallback = false;
+
+export function activeModel() {
+  return useFallback ? FALLBACK_MODEL : modelId();
+}
+
+function post(model: string, system: string, payload: unknown) {
+  return fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: modelId(),
+      model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: JSON.stringify(payload) },
@@ -83,6 +91,20 @@ export async function askJson<T>(system: string, payload: unknown): Promise<T> {
       response_format: { type: "json_object" },
     }),
   });
+}
+
+export async function askJson<T>(system: string, payload: unknown): Promise<T> {
+  let res = await post(activeModel(), system, payload);
+  if (!useFallback && (res.status === 404 || res.status === 400) && modelId() !== FALLBACK_MODEL) {
+    const body = await res.text();
+    if (/model/i.test(body)) {
+      console.warn(`Model "${modelId()}" was rejected; using ${FALLBACK_MODEL} instead.`);
+      useFallback = true;
+      res = await post(FALLBACK_MODEL, system, payload);
+    } else {
+      throw new Error(`OpenAI ${res.status}: ${body.slice(0, 300)}`);
+    }
+  }
   if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
   return JSON.parse(data.choices[0].message.content) as T;
@@ -127,6 +149,7 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
       id: uid(),
       contactId: contact.id,
       fact: m.fact,
+      about: m.about === "user" ? "user" : "contact",
       kind: (KINDS.includes(m.kind) ? m.kind : "event") as "event",
       when,
       status: "open",
