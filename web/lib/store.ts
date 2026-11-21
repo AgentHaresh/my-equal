@@ -7,6 +7,8 @@ export type Contact = {
   relation: string;
   close: boolean; // someone the user wants to stay close to
   lastContactAt: string;
+  relationSource?: "inferred" | "user"; // how the relation was decided; "user" is never overwritten
+  relationWhy?: string;
   userId?: string; // set when this contact is a real signed-in person
   picture?: string;
   sample?: boolean; // demo contact that comes with every new account
@@ -30,11 +32,13 @@ export type Memory = {
   status: "open" | "done";
   createdAt: string;
   about?: "user" | "contact"; // whose life the fact concerns
+  timed?: boolean; // true when "when" carries a time of day, not just a date
+  sourceMessageId?: string;
   sample?: boolean;
 };
 export type Suggestion = {
   id: string;
-  type: "intent" | "keep_close" | "follow_up" | "guardian";
+  type: "intent" | "keep_close" | "follow_up" | "guardian" | "reminder";
   contactId: string;
   title: string;
   detail: string;
@@ -100,6 +104,27 @@ const FILE = path.join(process.cwd(), "data", "db.json");
 const DAY = 86400000;
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
+
+// Dates are understood in Indian time, wherever the server happens to run.
+const IST_MS = 5.5 * 3600000;
+export const todayIST = (now = Date.now()) => new Date(now + IST_MS).toISOString().slice(0, 10);
+export const startOfTodayIST = (now = Date.now()) => Date.parse(`${todayIST(now)}T00:00:00+05:30`);
+
+/** Read "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" as Indian time. */
+export function parseWhen(s: string): { iso: string; timed: boolean } | null {
+  const m = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/.exec(String(s).trim());
+  if (!m) return null;
+  const d = new Date(`${m[1]}T${m[2] ?? "00:00"}:00+05:30`);
+  return isNaN(d.getTime()) ? null : { iso: d.toISOString(), timed: Boolean(m[2]) };
+}
+
+/** How often two people usually talk: the typical gap, in days, between days with messages. Null if too little history. */
+export function rhythmDays(db: DB, contactId: string): number | null {
+  const days = [...new Set(db.messages.filter((m) => m.contactId === contactId && m.from !== "butler").map((m) => todayIST(Date.parse(m.at))))].sort();
+  if (days.length < 3) return null;
+  const gaps = days.slice(1).map((d, i) => (Date.parse(d) - Date.parse(days[i])) / DAY).sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)];
+}
 
 function lastWeekday(target: number, from: Date) {
   const d = new Date(from);
@@ -195,7 +220,7 @@ export function upsertUser(profile: { email: string; name: string; picture?: str
 export function contactFor(space: DB, other: User): Contact {
   let c = space.contacts.find((x) => x.userId === other.id);
   if (!c) {
-    c = { id: `u-${other.id}`, name: other.name, relation: other.email, close: false, lastContactAt: new Date().toISOString(), userId: other.id, picture: other.picture };
+    c = { id: `u-${other.id}`, name: other.name, relation: "on My Equal", close: false, lastContactAt: new Date().toISOString(), userId: other.id, picture: other.picture };
     space.contacts.unshift(c);
   } else {
     c.name = other.name;
@@ -226,7 +251,10 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
   const drifting = new Set<string>();
   for (const c of db.contacts) {
     const days = Math.floor((now - new Date(c.lastContactAt).getTime()) / DAY);
-    if (!c.close || days < 14) continue;
+    // Compare the silence with how often we usually talk; without history, two weeks.
+    const usual = rhythmDays(db, c.id);
+    const limit = usual ? Math.max(7, Math.ceil(usual * 3)) : 14;
+    if (!c.close || c.owner || days < limit) continue;
     drifting.add(c.id);
     const recent = db.memories
       .filter((m) => m.contactId === c.id && m.status === "open" && m.about !== "user")
@@ -236,7 +264,9 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
       type: "keep_close",
       contactId: c.id,
       title: `It's been ${days} days since you spoke to ${c.name}`,
-      detail: recent ? `Something to ask about: ${recent.fact}${whenPhrase(recent.when, now)}.` : "A quick call or voice note would do.",
+      detail:
+        (usual ? `You usually talk every ${usual <= 1 ? "day" : `${Math.round(usual)} days`}. ` : "") +
+        (recent ? `Something to ask about: ${recent.fact.replace(/\.$/, "")}${whenPhrase(recent.when, now)}.` : "A quick call or voice note would do."),
       status: "new",
       createdAt: new Date(now).toISOString(),
     });
@@ -245,9 +275,7 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
     // Only things that happened to the contact are worth asking them about.
     if (m.status !== "open" || !m.when || m.about === "user" || drifting.has(m.contactId)) continue;
     const t = new Date(m.when).getTime();
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    if (t >= today.getTime() || now - t > 7 * DAY) continue; // the day must be over before asking how it went
+    if (t >= startOfTodayIST(now) || now - t > 7 * DAY) continue; // the day must be over before asking how it went
     const c = db.contacts.find((x) => x.id === m.contactId);
     if (!c) continue;
     out.push({
@@ -255,12 +283,34 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
       type: "follow_up",
       contactId: c.id,
       title: `Ask ${c.name} how it went`,
-      detail: `${m.fact}${whenPhrase(m.when, now)}.`,
+      detail: `${m.fact.replace(/\.$/, "")}${whenPhrase(m.when, now)}.`,
       status: "new",
       createdAt: new Date(now).toISOString(),
     });
   }
-  return out.filter((s) => !db.dismissed.includes(s.id));
+  // My own commitments: things I said I would do, and plans of mine, that are due about now.
+  const start = startOfTodayIST(now);
+  const mine: Suggestion[] = [];
+  for (const m of db.memories) {
+    if (m.status !== "open" || !m.when || !(m.about === "user" || m.kind === "promise")) continue;
+    const t = new Date(m.when).getTime();
+    if (t < start - 3 * DAY || t >= start + 2 * DAY) continue;
+    const c = db.contacts.find((x) => x.id === m.contactId);
+    if (!c || c.owner) continue;
+    const day = t < start ? "Overdue" : t < start + DAY ? "Today" : "Tomorrow";
+    const time = m.timed ? `, ${new Date(t).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}` : "";
+    mine.push({
+      id: `rm-${m.id}`,
+      type: "reminder",
+      contactId: c.id,
+      title: m.fact,
+      detail: `${day}${time} · from your chat with ${c.name}`,
+      status: "new",
+      createdAt: m.when,
+    });
+  }
+  mine.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return [...mine, ...out].filter((s) => !db.dismissed.includes(s.id));
 }
 
 function whenPhrase(when: string | null, now: number) {

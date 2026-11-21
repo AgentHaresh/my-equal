@@ -1,6 +1,7 @@
 import { contactFor, findUser, save, spaceOf, uid, Message } from "@/lib/store";
 import { analyse } from "@/lib/butler";
 import { checkScam } from "@/lib/scam";
+import { dueForLearning, learnRelation } from "@/lib/people";
 import { context, unauthorised } from "@/lib/auth";
 import { snapshot, friendSnapshot } from "@/lib/snapshot";
 
@@ -46,6 +47,8 @@ export async function POST(request: Request) {
     theirs.messages.push(copy);
     me.lastContactAt = at;
     void analyse(theirs, me, copy).then(() => save()); // does not hold up the sender
+    if (dueForLearning(theirs, me)) void learnRelation(theirs, me).then(() => save());
+    if (dueForLearning(db, contact)) void learnRelation(db, contact).then(() => save());
   }
   save(); // the message is stored even if the reading fails
 

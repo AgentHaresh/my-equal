@@ -18,7 +18,11 @@ export async function POST(request: Request) {
     // Saying yes to an offer of help starts the call-around.
     if (first && action === "accept" && stored.type === "intent") await createJob(db, stored);
   }
-  if (!stored && id && !db.dismissed.includes(id)) db.dismissed.push(id); // computed nudges are simply hidden once answered
+  if (!stored && id.startsWith("rm-") && action === "accept") {
+    // "Done" on a reminder: the commitment is finished.
+    const memory = db.memories.find((m) => m.id === id.slice(3));
+    if (memory) memory.status = "done";
+  } else if (!stored && id && !db.dismissed.includes(id)) db.dismissed.push(id); // computed nudges are simply hidden once answered
   save();
   return Response.json(snapshot(db, user));
 }

@@ -1,5 +1,6 @@
 import { save, uid, Message } from "@/lib/store";
 import { analyse, parseWhatsApp } from "@/lib/butler";
+import { learnRelation } from "@/lib/people";
 import { context, unauthorised } from "@/lib/auth";
 import { snapshot } from "@/lib/snapshot";
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   const other = parsed.find((m) => m.from === "them")?.sender ?? "Imported chat";
   let contact = db.contacts.find((c) => !c.sample && !c.userId && c.name.toLowerCase() === other.toLowerCase());
   if (!contact) {
-    contact = { id: uid(), name: other, relation: "imported from WhatsApp", close: true, lastContactAt: parsed[parsed.length - 1].at };
+    contact = { id: uid(), name: other, relation: "imported from WhatsApp", close: false, lastContactAt: parsed[parsed.length - 1].at };
     db.contacts.unshift(contact);
   }
   const added: Message[] = parsed.slice(-300).map((m) => ({ id: uid(), contactId: contact.id, from: m.from, text: m.text.slice(0, 2000), at: m.at }));
@@ -36,6 +37,8 @@ export async function POST(request: Request) {
     error = await analyse(db, contact, m, true);
     if (error) break;
   }
+  // Work out who this person is to the user, and so whether to watch for drifting apart.
+  if (!error) error = await learnRelation(db, contact);
   save();
   return Response.json({ ...snapshot(db, user, error), imported: added.length, contactId: contact.id });
 }

@@ -18,6 +18,12 @@ body {
   background: linear-gradient(180deg, #0c63d0 0%, #3a97f3 55%, #1a84f1 100%) fixed;
 }
 
+/* Quiet scrollbars that suit the blue panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
 /* Headlines in the deck are a heavy italic serif. */
 .font-display {
   font-style: italic;

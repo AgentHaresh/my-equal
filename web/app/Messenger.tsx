@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Snapshot } from "@/lib/snapshot";
+import type { Answer } from "@/lib/ask";
+import { RELATIONS } from "@/lib/relations";
 import JobCard from "./JobCard";
 import SignIn from "./SignIn";
 
@@ -68,6 +70,9 @@ export default function Messenger({ role }: Props) {
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [myName, setMyName] = useState("");
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [reply, setReply] = useState<(Answer & { question: string }) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
 
@@ -181,6 +186,24 @@ export default function Messenger({ role }: Props) {
     setNotice(next.imported ? `Imported ${next.imported} messages.${next.error ? ` Equal could not read them: ${next.error}` : ""}` : next.error);
   }
 
+  async function askQuestion() {
+    const q = question.trim();
+    if (!q || asking) return;
+    setAsking(true);
+    try {
+      const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }) });
+      setReply({ ...(await res.json()), question: q });
+      setQuestion("");
+    } finally {
+      setAsking(false);
+    }
+  }
+
+  async function describe(contactId: string, change: { relation?: string; close?: boolean }) {
+    const next = await api("/api/contacts", "POST", { contactId, ...change });
+    if (next.contacts) setSnap(next);
+  }
+
   async function signOut() {
     await fetch("/api/auth", { method: "DELETE" });
     setSnap(null);
@@ -194,6 +217,8 @@ export default function Messenger({ role }: Props) {
 
   const me = snap.me;
   const offers = snap.suggestions.filter((s) => s.status === "new");
+  const reminders = offers.filter((s) => s.type === "reminder");
+  const others = offers.filter((s) => s.type !== "reminder");
   const inlineOffer = offers.find((s) => s.type === "intent" && s.contactId === current);
   const quiet = new Map(snap.gateLog.filter((g) => !g.spoke).map((g) => [g.messageId, g.reason]));
   const memories = snap.memories.filter((m) => m.contactId === current && m.status === "open");
@@ -375,9 +400,66 @@ export default function Messenger({ role }: Props) {
             {snap.butler !== "online" && <p className="-mt-3 text-xs text-rose-200">{snap.butler}</p>}
 
             <section className="space-y-2">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  askQuestion();
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="Ask me anything you've forgotten"
+                  className="min-w-0 flex-1 rounded-full border border-white/30 bg-white/10 px-3.5 py-2 text-sm outline-none placeholder:text-white/55 focus:border-equal-lime"
+                />
+                <button disabled={asking || !question.trim()} className="rounded-full bg-equal-lime px-4 py-2 text-sm font-semibold text-equal-ink disabled:opacity-40">
+                  {asking ? "…" : "Ask"}
+                </button>
+              </form>
+              {reply && (
+                <div className="rounded-2xl bg-white p-3 text-equal-ink shadow-lg">
+                  <div className="text-xs text-equal-ink/60">{reply.question}</div>
+                  <div className="mt-1 text-sm font-medium">{reply.error ? `I could not answer: ${reply.error}` : reply.answer}</div>
+                  {reply.sources?.map((src, i) => (
+                    <div key={i} className="mt-2 border-l-2 border-equal-sky pl-2 text-xs text-equal-ink/70">
+                      <span className="font-semibold">
+                        {src.from} · chat with {src.who} · {new Date(src.at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      </span>
+                      <div className="line-clamp-2">{src.text}</div>
+                    </div>
+                  ))}
+                  <button onClick={() => setReply(null)} className="mt-2 text-xs text-equal-sky underline">
+                    Close
+                  </button>
+                </div>
+              )}
+            </section>
+
+            {reminders.length > 0 && (
+              <section className="space-y-2">
+                <h2 className={`${label} text-white/70`}>Don&apos;t forget</h2>
+                {reminders.map((s) => (
+                  <div key={s.id} className="rounded-2xl border-l-4 border-equal-lime bg-white/10 p-3">
+                    <div className="text-sm font-semibold">{s.title}</div>
+                    <div className="text-xs text-white/75">{s.detail}</div>
+                    <div className="mt-2 flex gap-2">
+                      <button onClick={() => answer(s, "accept")} className="rounded-full bg-equal-lime px-3.5 py-1 text-sm font-semibold text-equal-ink">
+                        Done
+                      </button>
+                      <button onClick={() => answer(s, "dismiss")} className="rounded-full px-3 py-1 text-sm text-white/85 hover:bg-white/10">
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <section className="space-y-2">
               <h2 className={`${label} text-white/70`}>For you</h2>
-              {offers.length === 0 && snap.jobs.length === 0 && <p className="text-sm text-white/70">Nothing needs you right now.</p>}
-              {offers.map((s) => (
+              {others.length === 0 && snap.jobs.length === 0 && <p className="text-sm text-white/70">Nothing needs you right now.</p>}
+              {others.map((s) => (
                 <div key={s.id} className={`rounded-2xl border p-3 ${s.type === "guardian" ? "border-rose-300 bg-rose-600" : "border-white/20 bg-white/10"}`}>
                   <div className={`${label} ${s.type === "guardian" ? "text-white" : "text-equal-lime"}`}>
                     {s.type === "guardian" ? "Family alert" : s.type === "intent" ? "Can help now" : s.type === "keep_close" ? "Stay close" : "Follow up"}
@@ -402,6 +484,30 @@ export default function Messenger({ role }: Props) {
             {contact && (
               <section className="space-y-2">
                 <h2 className={`${label} text-white/70`}>What I remember about {contact.name}</h2>
+                {!contact.unknown && (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="text-white/75">{contact.name} is your</span>
+                    <select
+                      value={(RELATIONS as readonly string[]).includes(contact.relation) ? contact.relation : ""}
+                      onChange={(e) => describe(contact.id, { relation: e.target.value })}
+                      className="rounded-full border border-white/30 bg-equal-card px-2 py-0.5 text-sm text-white outline-none"
+                    >
+                      <option value="" disabled>
+                        {contact.relation}
+                      </option>
+                      {RELATIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="flex items-center gap-1 text-white/75">
+                      <input type="checkbox" checked={contact.close} onChange={(e) => describe(contact.id, { close: e.target.checked })} className="accent-[#cef82c]" />
+                      keep close
+                    </label>
+                  </div>
+                )}
+                {contact.relationSource === "inferred" && contact.relationWhy && <div className="text-xs text-white/60">Worked out from your chat: {contact.relationWhy}</div>}
                 {memories.length === 0 && <p className="text-sm text-white/70">Nothing yet.</p>}
                 {memories.map((m) => (
                   <div key={m.id} className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm">

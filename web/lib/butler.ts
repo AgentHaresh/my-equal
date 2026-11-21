@@ -1,4 +1,4 @@
-import { DB, Contact, Message, uid } from "./store";
+import { DB, Contact, Message, parseWhen, todayIST, uid } from "./store";
 
 /**
  * The butler reads a conversation and does two jobs:
@@ -27,7 +27,8 @@ Return ONLY a JSON object with this shape:
 
 MEMORIES: facts from the NEWEST message only that are worth remembering later about the contact or the user:
 appointments, exams, interviews, trips, health worries, promises made by either side. "fact" is short and in English. "about" is "user" when the fact concerns the user's own life, and "contact" when it concerns the contact.
-"when" is an ISO date (YYYY-MM-DD) if the message places it in time, using TODAY to resolve words like Thursday or tomorrow; otherwise null.
+"when" is an ISO date (YYYY-MM-DD) if the message places it in time, or YYYY-MM-DDTHH:MM (24-hour, Indian time) if it also gives a time of day. Use TODAY and WEEKDAY to resolve words like Thursday, tomorrow or tonight. Otherwise null.
+The user's own plans and promises matter most, because they must not be forgotten: "I have a client meeting at 4", "I'll send you the deck by Friday", "I need to renew the insurance this week". Record each with "about": "user", and use kind "promise" when the user said they would do something for someone.
 Do not repeat anything already listed in KNOWN_MEMORIES. Small talk produces no memories.
 
 RESOLVED: ids from KNOWN_MEMORIES that the newest message shows are finished or answered.
@@ -122,7 +123,9 @@ export async function analyse(db: DB, contact: Contact, msg: Message, memoriesOn
   let a: Analysis;
   try {
     a = await askJson<Analysis>(SYSTEM, {
-      TODAY: new Date().toISOString().slice(0, 10),
+      // Dates are resolved against the day the message was sent, so an imported old chat is read correctly.
+      TODAY: todayIST(Date.parse(msg.at)),
+      WEEKDAY: new Date(msg.at).toLocaleDateString("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" }),
       CONTACT: { name: contact.name, relation: contact.relation },
       KNOWN_MEMORIES: known,
       CONVERSATION: thread.map((m) => ({ from: m.from, text: m.text })),
@@ -144,7 +147,8 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
       (x) => x.contactId === contact.id && x.fact.toLowerCase() === m.fact.toLowerCase()
     );
     if (dup) continue;
-    const when = m.when && !isNaN(Date.parse(m.when)) ? new Date(m.when).toISOString() : null;
+    const parsed = m.when ? parseWhen(m.when) : null;
+    const when = parsed?.iso ?? null;
     db.memories.push({
       id: uid(),
       contactId: contact.id,
@@ -152,6 +156,8 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
       about: m.about === "user" ? "user" : "contact",
       kind: (KINDS.includes(m.kind) ? m.kind : "event") as "event",
       when,
+      timed: parsed?.timed || undefined,
+      sourceMessageId: msg.id,
       status: "open",
       createdAt: now,
     });
