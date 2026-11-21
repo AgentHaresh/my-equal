@@ -1,18 +1,17 @@
-// Test of the scam shield against a running server. Usage: node scam-test.mjs <base-url>
-const B = process.argv[2] ?? "http://localhost:3217";
-const j = (r) => r.json();
-const send = (contactId, text) => fetch(B + "/api/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId, from: "them", text }) }).then(j);
-let fails = 0;
-const check = (name, ok, extra = "") => {
-  if (!ok) fails++;
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + extra : ""}`);
-};
-const last = async (contactId, view) => {
-  const s = await fetch(`${B}/api/state${view}`).then(j);
-  return s.messages.filter((m) => m.contactId === contactId).at(-1);
-};
+// Test of the scam shield. Usage: node tests/scam-test.mjs <base-url>
+import { signIn, anon, checker } from "./helper.mjs";
 
-await fetch(B + "/api/state", { method: "DELETE" });
+const B = process.argv[2] ?? "http://localhost:3217";
+const { check, finish } = checker();
+const me = await signIn(B, "test-scam@example.com", "Scam Tester");
+const link = anon(B);
+const u = me.user.id;
+
+// A stranger sends a message to one of the account's unknown-number threads.
+const stranger = (contactId, text) => link.json("/api/messages", "POST", { contactId, from: "them", text, u });
+const lastOf = (s, contactId) => s.messages.filter((m) => m.contactId === contactId).at(-1);
+
+await me.json("/api/state", "DELETE");
 
 // Genuine messages to the user's own number must not be flagged.
 const genuine = [
@@ -23,9 +22,8 @@ const genuine = [
   "Sir mee bike service aipoyindi, repu vachi teesukondi. - Sri Sai Motors",
 ];
 for (const text of genuine) {
-  const reply = await send("unknown-me", text);
-  if (reply.error) console.log("      error:", reply.error);
-  const m = await last("unknown-me", "");
+  await stranger("unknown-me", text);
+  const m = lastOf(await me.json("/api/state"), "unknown-me");
   check(`genuine not flagged: ${text.slice(0, 48)}`, !m.scam, m.scam ? m.scam.pattern + ": " + m.scam.reason : "");
 }
 
@@ -37,11 +35,11 @@ const scams = [
   "Congratulations! You have been selected for a work-from-home job. Earn Rs 5,000 daily by liking videos. Pay Rs 999 registration fee to start.",
 ];
 for (const text of scams) {
-  await fetch(B + "/api/state", { method: "DELETE" }); // each scam judged on its own
-  const reply = await send("unknown-nanna", text);
-  const m = await last("unknown-nanna", "?protected=unknown-nanna");
-  check(`scam flagged: ${text.slice(0, 48)}`, Boolean(m.scam), m.scam ? `${m.scam.pattern} | ${m.scam.reason} | ${m.scam.advice}` : "not flagged");
-  const mine = await fetch(B + "/api/state").then(j);
+  await me.json("/api/state", "DELETE"); // each scam judged on its own
+  const reply = await stranger("unknown-nanna", text);
+  const m = lastOf(await link.json(`/api/state?protected=unknown-nanna&u=${u}`), "unknown-nanna");
+  check(`scam flagged: ${text.slice(0, 48)}`, Boolean(m?.scam), m?.scam ? `${m.scam.pattern} | ${m.scam.reason}` : "not flagged");
+  const mine = await me.json("/api/state");
   const alert = mine.suggestions.find((s) => s.type === "guardian");
   check("  guardian alert raised for the user", Boolean(alert), alert?.title ?? "");
   check("  sender is not told it was flagged", !reply.messages.some((x) => x.scam));
@@ -49,14 +47,13 @@ for (const text of scams) {
 }
 
 // A scam sent to the user directly is flagged in their own chat, with no guardian alert.
-await fetch(B + "/api/state", { method: "DELETE" });
-await send("unknown-me", "Your electricity connection will be disconnected tonight at 9:30 PM as your bill is not updated. Call officer 98765xxxxx immediately and share the OTP.");
-const own = await fetch(B + "/api/state").then(j);
-const ownMsg = own.messages.filter((m) => m.contactId === "unknown-me").at(-1);
-check("scam to the user is flagged in their own chat", Boolean(ownMsg.scam), ownMsg.scam?.pattern ?? "");
+await me.json("/api/state", "DELETE");
+await stranger("unknown-me", "Your electricity connection will be disconnected tonight at 9:30 PM as your bill is not updated. Call officer 98765xxxxx immediately and share the OTP.");
+const own = await me.json("/api/state");
+check("scam to the user is flagged in their own chat", Boolean(lastOf(own, "unknown-me").scam), lastOf(own, "unknown-me").scam?.pattern ?? "");
 check("no guardian alert for the user's own thread", !own.suggestions.some((s) => s.type === "guardian"));
-check("family phone page loads", (await fetch(`${B}/protected?c=unknown-nanna`)).status === 200);
+check("family phone page loads", (await link.call(`/protected?u=${u}&c=unknown-nanna`)).status === 200);
+check("a link naming no account is rejected", (await link.call("/api/state?protected=unknown-nanna&u=nobody")).status === 404);
 
-await fetch(B + "/api/state", { method: "DELETE" });
-console.log(fails ? `\n${fails} FAILED` : "\nALL PASSED");
-process.exit(fails ? 1 : 0);
+await me.json("/api/state", "DELETE");
+finish();

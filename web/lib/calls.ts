@@ -1,4 +1,4 @@
-import { DB, Job, Call, Quote, Suggestion, uid } from "./store";
+import { DB, Job, Call, Quote, Suggestion, root, uid } from "./store";
 import { askJson, butlerStatus } from "./butler";
 
 /**
@@ -24,7 +24,8 @@ Your goal is to get answers to QUESTIONS. Rules:
 - Never agree to book and never promise payment. Say the customer will confirm.
 - Do not invent details about the customer. If asked something that is not in BRIEF, say you will check with the customer.
 - If the provider cannot help, thank them and end.
-- When all QUESTIONS are answered, thank them, say the customer will confirm shortly, and end.
+- Ask each of the QUESTIONS at most once, and ask nothing beyond them. An answer already given, even in passing, counts.
+- As soon as each question has an answer or a refusal, thank them, say the customer will confirm shortly, and end with "done": true. Do not keep the provider on the line.
 
 Return ONLY JSON:
 {"say": string, "done": boolean,
@@ -63,10 +64,14 @@ export async function createJob(db: DB, s: Suggestion): Promise<Job> {
   return job;
 }
 
-export function findCall(db: DB, callId: string): { job: Job; call: Call } | null {
-  for (const job of db.jobs) {
-    const call = job.calls.find((c) => c.id === callId);
-    if (call) return { job, call };
+/** A call link carries only the call's id, so look for it across everyone's jobs. */
+export function findCall(callId: string): { db: DB; job: Job; call: Call } | null {
+  if (!callId) return null;
+  for (const db of Object.values(root().spaces)) {
+    for (const job of db.jobs) {
+      const call = job.calls.find((c) => c.id === callId);
+      if (call) return { db, job, call };
+    }
   }
   return null;
 }

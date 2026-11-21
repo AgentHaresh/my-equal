@@ -1,4 +1,4 @@
-import { load, save } from "@/lib/store";
+import { save } from "@/lib/store";
 import { findCall, providerSays } from "@/lib/calls";
 import { speak, transcribe } from "@/lib/voice";
 
@@ -6,7 +6,7 @@ import { speak, transcribe } from "@/lib/voice";
 // spoken, so this cannot be used as a general text-to-speech service.
 export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
-  const found = findCall(load(), q.get("id") ?? "");
+  const found = findCall(q.get("id") ?? "");
   const line = found?.call.transcript[Number(q.get("n"))];
   if (!line || line.from !== "butler") return Response.json({ error: "no such line" }, { status: 404 });
   try {
@@ -21,10 +21,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   const audio = form?.get("audio");
-  const db = load();
-  const found = findCall(db, String(form?.get("id") ?? ""));
+  const found = findCall(String(form?.get("id") ?? ""));
   if (!found || !(audio instanceof Blob)) return Response.json({ error: "id and audio are required" }, { status: 400 });
-  if (audio.size < 1200) return Response.json({ error: "That was too short to hear. Hold the button while you speak." }, { status: 400 });
+  if (audio.size < 1200) return Response.json({ error: "That was too short to hear. Tap, speak, then tap again." }, { status: 400 });
   if (audio.size > 6_000_000) return Response.json({ error: "That recording is too long." }, { status: 400 });
 
   let heard: string;
@@ -35,8 +34,8 @@ export async function POST(request: Request) {
   }
   if (!heard) return Response.json({ error: "I could not make that out. Please try again." }, { status: 400 });
 
-  const error = await providerSays(db, found.job, found.call, heard);
-  save(db);
+  const error = await providerSays(found.db, found.job, found.call, heard);
+  save();
   const { job, call } = found;
   return Response.json({
     status: call.status,

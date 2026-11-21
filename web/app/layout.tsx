@@ -20,7 +20,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Equal",
+  title: "My Equal",
   description: "Your AI messenger is your AI assistant",
 };
 

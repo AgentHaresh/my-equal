@@ -1,12 +1,16 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-// The key file lives one folder up, next to the repository root, so load it from there.
-// Values already set in the environment (for example on the server) win.
-try {
-  process.loadEnvFile(path.join(process.cwd(), "..", ".env"));
-} catch {
-  /* no file there: rely on the real environment */
+// Settings live one folder up, next to the repository root, so load them from there:
+//   .env         keys you provide (OpenAI key and model, Google client id)
+//   .server.env  secrets the server generates for itself (session signing)
+// Values already set in the real environment win.
+for (const name of [".env", ".server.env"]) {
+  try {
+    process.loadEnvFile(path.join(process.cwd(), "..", name));
+  } catch {
+    /* no such file: rely on the real environment */
+  }
 }
 
 const nextConfig: NextConfig = {

@@ -11,7 +11,8 @@ export default function ProtectedScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/state?protected=${encodeURIComponent(id)}`);
+      const u = new URLSearchParams(window.location.search).get("u") ?? "";
+      const res = await fetch(`/api/state?protected=${encodeURIComponent(id)}&u=${encodeURIComponent(u)}`);
       setSnap(await res.json());
     } catch {
       /* retry on the next poll */
@@ -27,13 +28,13 @@ export default function ProtectedScreen() {
     };
   }, [refresh]);
 
-  const count = snap?.messages.length ?? 0;
+  const count = snap?.messages?.length ?? 0;
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [count]);
 
   if (!snap) return <div className="flex h-screen items-center justify-center text-white/80">Loading…</div>;
-  const contact = snap.contacts[0];
+  const contact = snap.contacts?.[0];
   if (!contact) return <div className="flex h-screen items-center justify-center px-6 text-center text-white/80">Nothing here.</div>;
   const flagged = snap.messages.some((m) => m.scam);
 

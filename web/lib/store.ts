@@ -7,6 +7,9 @@ export type Contact = {
   relation: string;
   close: boolean; // someone the user wants to stay close to
   lastContactAt: string;
+  userId?: string; // set when this contact is a real signed-in person
+  picture?: string;
+  sample?: boolean; // demo contact that comes with every new account
   unknown?: boolean; // a number that is not in contacts
   owner?: string; // set when the thread is on a protected family member's phone, not the user's
 };
@@ -74,6 +77,14 @@ export type Job = {
   bookedCallId: string | null;
   createdAt: string;
 };
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  picture?: string;
+  createdAt: string;
+};
+/** One person's private space: their chats, what Equal remembers for them, and its offers. */
 export type DB = {
   jobs: Job[];
   contacts: Contact[];
@@ -103,12 +114,12 @@ export function seed(): DB {
   const thursday = lastWeekday(4, new Date(now)).toISOString();
   return {
     contacts: [
-      { id: "anna", name: "Anna", relation: "brother", close: true, lastContactAt: ago(22) },
-      { id: "ravi", name: "Ravi", relation: "close friend", close: true, lastContactAt: ago(2) },
-      { id: "priya", name: "Priya", relation: "sister", close: true, lastContactAt: ago(9) },
-      { id: "kiran", name: "Kiran", relation: "colleague", close: false, lastContactAt: ago(1) },
-      { id: "unknown-me", name: "+91 90000 12345", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true },
-      { id: "unknown-nanna", name: "+91 98765 00000", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true, owner: "Nanna" },
+      { id: "anna", sample: true, name: "Anna", relation: "brother", close: true, lastContactAt: ago(22) },
+      { id: "ravi", sample: true, name: "Ravi", relation: "close friend", close: true, lastContactAt: ago(2) },
+      { id: "priya", sample: true, name: "Priya", relation: "sister", close: true, lastContactAt: ago(9) },
+      { id: "kiran", sample: true, name: "Kiran", relation: "colleague", close: false, lastContactAt: ago(1) },
+      { id: "unknown-me", sample: true, name: "+91 90000 12345", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true },
+      { id: "unknown-nanna", sample: true, name: "+91 98765 00000", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true, owner: "Nanna" },
     ],
     messages: [
       { id: uid(), contactId: "anna", from: "them", text: "Thursday eye check-up undi ra, LV Prasad lo. Don't worry.", at: ago(22) },
@@ -126,21 +137,83 @@ export function seed(): DB {
   };
 }
 
-export function load(): DB {
-  try {
-    const db = JSON.parse(fs.readFileSync(FILE, "utf8")) as DB;
-    db.jobs ??= []; // files written before jobs existed
-    return db;
-  } catch {
-    const db = seed();
-    save(db);
-    return db;
+/** Everything the server knows: the people who have signed in, and one private space each. */
+export type Root = { users: User[]; spaces: Record<string, DB> };
+
+// One object shared by every request in this process. Handlers change it directly, so two
+// requests can never overwrite each other's work, and it is written to disk after each change.
+const holder = globalThis as unknown as { __equalRoot?: Root };
+
+export function root(): Root {
+  if (!holder.__equalRoot) {
+    try {
+      const r = JSON.parse(fs.readFileSync(FILE, "utf8")) as Root;
+      holder.__equalRoot = r.users && r.spaces ? r : { users: [], spaces: {} };
+    } catch {
+      holder.__equalRoot = { users: [], spaces: {} };
+    }
   }
+  return holder.__equalRoot;
 }
 
-export function save(db: DB) {
+/** Write the current state to disk. The argument is accepted for readability at call sites and ignored. */
+export function save(_db?: DB) {
+  void _db;
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(db, null, 1));
+  fs.writeFileSync(FILE, JSON.stringify(root()));
+}
+
+/** A person's space, created with the sample contacts on first use. */
+export function spaceOf(userId: string): DB {
+  const r = root();
+  if (!r.spaces[userId]) r.spaces[userId] = seed();
+  return r.spaces[userId];
+}
+
+export function findUser(id: string): User | undefined {
+  return root().users.find((u) => u.id === id);
+}
+
+export function upsertUser(profile: { email: string; name: string; picture?: string }): User {
+  const r = root();
+  const email = profile.email.trim().toLowerCase();
+  let user = r.users.find((u) => u.email === email);
+  if (user) {
+    user.name = profile.name || user.name;
+    user.picture = profile.picture ?? user.picture;
+  } else {
+    user = { id: uid(), email, name: profile.name || email.split("@")[0], picture: profile.picture, createdAt: new Date().toISOString() };
+    r.users.push(user);
+  }
+  spaceOf(user.id);
+  save();
+  return user;
+}
+
+/** Find, or create, the contact in `space` that stands for the real person `other`. */
+export function contactFor(space: DB, other: User): Contact {
+  let c = space.contacts.find((x) => x.userId === other.id);
+  if (!c) {
+    c = { id: `u-${other.id}`, name: other.name, relation: other.email, close: false, lastContactAt: new Date().toISOString(), userId: other.id, picture: other.picture };
+    space.contacts.unshift(c);
+  } else {
+    c.name = other.name;
+    c.picture = other.picture;
+  }
+  return c;
+}
+
+/** Put the sample contacts back to their starting state, keeping real people and imported chats. */
+export function resetSamples(space: DB) {
+  const fresh = seed();
+  const keep = new Set(space.contacts.filter((c) => !c.sample).map((c) => c.id));
+  space.contacts = [...space.contacts.filter((c) => keep.has(c.id)), ...fresh.contacts];
+  space.messages = [...space.messages.filter((m) => keep.has(m.contactId)), ...fresh.messages];
+  space.memories = [...space.memories.filter((m) => keep.has(m.contactId)), ...fresh.memories];
+  space.suggestions = space.suggestions.filter((x) => keep.has(x.contactId));
+  space.jobs = space.jobs.filter((j) => keep.has(j.contactId));
+  space.gateLog = [];
+  space.dismissed = [];
 }
 
 /**

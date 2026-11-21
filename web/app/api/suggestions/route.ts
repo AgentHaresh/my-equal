@@ -1,14 +1,16 @@
-import { load, save } from "@/lib/store";
+import { save } from "@/lib/store";
 import { createJob } from "@/lib/calls";
+import { context, unauthorised } from "@/lib/auth";
 import { snapshot } from "@/lib/snapshot";
 
-
-// The user answers a butler suggestion: accept or dismiss. Nothing happens without this.
+// The user answers a suggestion from Equal: accept or dismiss. Nothing happens without this.
 export async function POST(request: Request) {
+  const ctx = context(request);
+  if (!ctx) return unauthorised();
+  const { db, user } = ctx;
   const body = await request.json().catch(() => null);
   const id = String(body?.id ?? "");
   const action = body?.action === "accept" ? "accept" : "dismiss";
-  const db = load();
   const stored = db.suggestions.find((s) => s.id === id);
   if (stored) {
     const first = stored.status === "new";
@@ -17,6 +19,6 @@ export async function POST(request: Request) {
     if (first && action === "accept" && stored.type === "intent") await createJob(db, stored);
   }
   if (!stored && id && !db.dismissed.includes(id)) db.dismissed.push(id); // computed nudges are simply hidden once answered
-  save(db);
-  return Response.json(snapshot(db));
+  save();
+  return Response.json(snapshot(db, user));
 }
