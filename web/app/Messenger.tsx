@@ -114,7 +114,7 @@ export default function Messenger({ role, contactId }: Props) {
 
   async function answer(s: Suggestion, action: "accept" | "dismiss") {
     setSnap(await call("/api/suggestions", "POST", { id: s.id, action }));
-    if (action === "accept" && s.type !== "intent") setSelected(s.contactId);
+    if (action === "accept" && (s.type === "keep_close" || s.type === "follow_up")) setSelected(s.contactId);
   }
 
   async function bookProvider(jobId: string, callId: string) {
@@ -158,14 +158,17 @@ export default function Messenger({ role, contactId }: Props) {
                 const last = snap.messages.filter((m) => m.contactId === c.id && m.from !== "butler").at(-1);
                 const drifting = c.close && now - new Date(c.lastContactAt).getTime() > 14 * DAY;
                 const active = c.id === selected;
+                const flagged = snap.messages.some((m) => m.contactId === c.id && m.scam);
                 return (
                   <li key={c.id}>
                     <button
                       onClick={() => setSelected(c.id)}
                       className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${active ? "bg-white/20" : "hover:bg-white/10"}`}
                     >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-equal-lime font-semibold text-equal-ink">
-                        {c.name[0]}
+                      <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-semibold ${flagged ? "bg-rose-500 text-white" : c.unknown ? "bg-white/25 text-white" : "bg-equal-lime text-equal-ink"}`}
+                      >
+                        {c.unknown ? "?" : c.name[0]}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
@@ -174,7 +177,9 @@ export default function Messenger({ role, contactId }: Props) {
                             {ago(c.lastContactAt, now)}
                           </span>
                         </span>
-                        <span className="block truncate text-sm text-white/70">{last?.text ?? c.relation}</span>
+                        <span className={`block truncate text-sm ${flagged ? "font-semibold text-rose-200" : "text-white/70"}`}>
+                          {flagged ? "Looks like a scam" : last?.text ?? c.relation}
+                        </span>
                       </span>
                     </button>
                   </li>
@@ -214,6 +219,13 @@ export default function Messenger({ role, contactId }: Props) {
                     {m.text}
                     <span className={`ml-2 text-[10px] ${mine ? "text-white/70" : "text-equal-ink/40"}`}>{clock(m.at, now)}</span>
                   </div>
+                  {isMe && m.scam && (
+                    <div className="mt-1.5 max-w-[75%] rounded-2xl bg-rose-600 px-4 py-3 text-white shadow">
+                      <div className="font-bold">Equal: this looks like a scam ({m.scam.pattern})</div>
+                      <div className="mt-1 text-sm">{m.scam.reason}</div>
+                      <div className="mt-2 rounded-xl bg-white/15 px-3 py-1.5 text-sm font-semibold">{m.scam.advice}</div>
+                    </div>
+                  )}
                   {isMe && quiet.has(m.id) && (
                     <div className="mt-0.5 max-w-[75%] text-[11px] italic text-equal-ink/50">Equal stayed quiet: {quiet.get(m.id)}</div>
                   )}
@@ -277,15 +289,15 @@ export default function Messenger({ role, contactId }: Props) {
               <h2 className={`${label} text-white/70`}>For you</h2>
               {offers.length === 0 && snap.jobs.length === 0 && <p className="text-sm text-white/70">Nothing needs you right now.</p>}
               {offers.map((s) => (
-                <div key={s.id} className="rounded-2xl border border-white/20 bg-white/10 p-3">
-                  <div className={`${label} text-equal-lime`}>
-                    {s.type === "intent" ? "Can help now" : s.type === "keep_close" ? "Stay close" : "Follow up"}
+                <div key={s.id} className={`rounded-2xl border p-3 ${s.type === "guardian" ? "border-rose-300 bg-rose-600" : "border-white/20 bg-white/10"}`}>
+                  <div className={`${label} ${s.type === "guardian" ? "text-white" : "text-equal-lime"}`}>
+                    {s.type === "guardian" ? "Family alert" : s.type === "intent" ? "Can help now" : s.type === "keep_close" ? "Stay close" : "Follow up"}
                   </div>
                   <div className="mt-1 text-sm font-semibold">{s.title}</div>
                   <div className="text-sm text-white/80">{s.detail}</div>
                   <div className="mt-2.5 flex gap-2">
                     <button onClick={() => answer(s, "accept")} className="rounded-full bg-equal-lime px-3.5 py-1 text-sm font-semibold text-equal-ink hover:brightness-95">
-                      {s.type === "intent" ? "Yes, please" : "Open chat"}
+                      {s.type === "guardian" ? "I'll call them" : s.type === "intent" ? "Yes, please" : "Open chat"}
                     </button>
                     <button onClick={() => answer(s, "dismiss")} className="rounded-full px-3 py-1 text-sm text-white/80 hover:bg-white/10">
                       Dismiss

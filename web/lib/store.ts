@@ -7,6 +7,8 @@ export type Contact = {
   relation: string;
   close: boolean; // someone the user wants to stay close to
   lastContactAt: string;
+  unknown?: boolean; // a number that is not in contacts
+  owner?: string; // set when the thread is on a protected family member's phone, not the user's
 };
 export type Message = {
   id: string;
@@ -14,6 +16,7 @@ export type Message = {
   from: "me" | "them" | "butler"; // "butler" notes are private to the user
   text: string;
   at: string;
+  scam?: { pattern: string; reason: string; advice: string }; // set when the scam shield flags it
 };
 export type Memory = {
   id: string;
@@ -28,7 +31,7 @@ export type Memory = {
 };
 export type Suggestion = {
   id: string;
-  type: "intent" | "keep_close" | "follow_up";
+  type: "intent" | "keep_close" | "follow_up" | "guardian";
   contactId: string;
   title: string;
   detail: string;
@@ -104,6 +107,8 @@ export function seed(): DB {
       { id: "ravi", name: "Ravi", relation: "close friend", close: true, lastContactAt: ago(2) },
       { id: "priya", name: "Priya", relation: "sister", close: true, lastContactAt: ago(9) },
       { id: "kiran", name: "Kiran", relation: "colleague", close: false, lastContactAt: ago(1) },
+      { id: "unknown-me", name: "+91 90000 12345", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true },
+      { id: "unknown-nanna", name: "+91 98765 00000", relation: "not in contacts", close: false, lastContactAt: ago(0), unknown: true, owner: "Nanna" },
     ],
     messages: [
       { id: uid(), contactId: "anna", from: "them", text: "Thursday eye check-up undi ra, LV Prasad lo. Don't worry.", at: ago(22) },

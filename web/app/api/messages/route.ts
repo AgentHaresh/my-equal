@@ -1,5 +1,6 @@
 import { load, save, uid, Message } from "@/lib/store";
 import { analyse } from "@/lib/butler";
+import { checkScam } from "@/lib/scam";
 import { snapshot, friendSnapshot } from "@/lib/snapshot";
 
 
@@ -16,7 +17,8 @@ export async function POST(request: Request) {
   contact.lastContactAt = msg.at;
   save(db); // the message is stored even if the analysis fails
 
-  const error = await analyse(db, contact, msg);
+  // Unknown numbers get the scam check; people you know get the usual reading for memories and offers of help.
+  const error = contact.unknown ? (from === "them" ? await checkScam(db, contact, msg) : null) : await analyse(db, contact, msg);
   save(db);
   return Response.json(from === "them" ? friendSnapshot(db, contact.id) : snapshot(db, error));
 }
