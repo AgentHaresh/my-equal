@@ -4,9 +4,19 @@ import { checkScam } from "@/lib/scam";
 import { deliver } from "@/lib/deliver";
 import { context, unauthorised } from "@/lib/auth";
 import { snapshot, friendSnapshot } from "@/lib/snapshot";
+import { deleteMessage, editMessage, react } from "@/lib/edit";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
+  if (typeof body?.forwardOf === "string") {
+    const ctx = context(request);
+    if (!ctx) return unauthorised();
+    const source = ctx.db.messages.find((m) => m.id === body.forwardOf && m.from !== "butler" && !m.deleted && !ctx.db.contacts.find((c) => c.id === m.contactId)?.owner);
+    const to = ctx.db.contacts.find((c) => c.id === body?.contactId && !c.owner && !c.unknown);
+    if (!source || !to) return Response.json({ error: "No such message or chat." }, { status: 404 });
+    const error = await deliver(ctx.db, ctx.user, to, source.text, source.voice, undefined, source.file, true);
+    return Response.json(snapshot(ctx.db, ctx.user, error));
+  }
   const text = typeof body?.text === "string" ? body.text.trim().slice(0, 2000) : "";
   if (!text) return Response.json({ error: "text is required" }, { status: 400 });
   const at = new Date().toISOString();
@@ -34,6 +44,40 @@ export async function POST(request: Request) {
   const contact = db.contacts.find((c) => c.id === body?.contactId);
   if (!contact) return Response.json({ error: "No such chat." }, { status: 400 });
 
-  const error = await deliver(db, user, contact, text);
+  const error = await deliver(db, user, contact, text, undefined, typeof body?.replyTo === "string" ? body.replyTo : undefined);
   return Response.json(snapshot(db, user, error));
+}
+
+// Change the words of a message I sent. The other person's copy changes too, and both are marked "edited".
+export async function PATCH(request: Request) {
+  const ctx = context(request);
+  if (!ctx) return unauthorised();
+  const body = await request.json().catch(() => null);
+  // A reaction is seen by both of us.
+  if ("reaction" in (body ?? {})) {
+    if (!react(ctx.db, String(body.id ?? ""), typeof body.reaction === "string" ? body.reaction : null)) return Response.json({ error: "No such message or reaction." }, { status: 404 });
+    return Response.json(snapshot(ctx.db, ctx.user));
+  }
+  // Starring is private to me: it marks my copy only, on anyone's message.
+  if (typeof body?.starred === "boolean") {
+    const msg = ctx.db.messages.find((m) => m.id === body.id && m.from !== "butler" && !m.deleted);
+    if (!msg) return Response.json({ error: "No such message." }, { status: 404 });
+    msg.starred = body.starred || undefined;
+    save();
+    return Response.json(snapshot(ctx.db, ctx.user));
+  }
+  const text = typeof body?.text === "string" ? body.text.trim().slice(0, 2000) : "";
+  if (!text) return Response.json({ error: "text is required" }, { status: 400 });
+  const r = await editMessage(ctx.db, String(body?.id ?? ""), text);
+  if (!r.ok) return Response.json({ error: r.error }, { status: r.status });
+  return Response.json(snapshot(ctx.db, ctx.user, r.error));
+}
+
+// Delete a message. Mine is taken back for both of us; someone else's is removed from my side only.
+export async function DELETE(request: Request) {
+  const ctx = context(request);
+  if (!ctx) return unauthorised();
+  const body = await request.json().catch(() => null);
+  if (!deleteMessage(ctx.db, String(body?.id ?? ""))) return Response.json({ error: "No such message." }, { status: 404 });
+  return Response.json(snapshot(ctx.db, ctx.user));
 }

@@ -1,7 +1,7 @@
 {
- "ranAt": "2026-11-21T11:37:19.462Z",
+ "ranAt": "2026-11-21T12:49:30.203Z",
  "model": "gpt-6.1-terra",
- "note": "Third run of the same messages; earlier runs also scored 60 of 60. The scoreboard now uses an empty space of its own, so the sample chats cannot influence it. One prompt rule (errands for family) was changed earlier in the day because of the BP medicine message, which is marked as seen.",
+ "note": "Fourth run of the same messages, after two prompt changes made on 21 Nov: the assistant now explains why it stays quiet when someone shares bad news, and a problem happening now is no longer saved as a reminder. Earlier runs scored 60 of 60. One earlier rule (errands for family) was shaped by the BP",
  "unseen": {
   "right": 46,
   "total": 46
@@ -32,14 +32,14 @@
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help find an AC repair technician who can come today?"
+    "detail": "Want me to find an AC technician who can come today?"
    },
    {
     "text": "The kitchen tap is leaking all over the floor, I need a plumber right now",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to find a plumber who can come right away?"
+    "detail": "Want me to find an emergency plumber nearby?"
    },
    {
     "text": "Nanna ki BP medicine aipoyindi anta, repu konali. Naaku time ledu",
@@ -47,7 +47,7 @@
     "seen": true,
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help find a pharmacy that can deliver your father's medicine?"
+    "detail": "Want me to find a pharmacy that can deliver it?"
    },
    {
     "text": "I have a terrible toothache since morning, need to see a dentist today itself",
@@ -61,35 +61,35 @@
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to find a laptop repair service nearby?"
+    "detail": "Want me to find a laptop repair service that can help today?"
    },
    {
     "text": "Power went out only in our flat, the main switch keeps tripping. Need an electrician this evening",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help you find an electrician for this evening?"
+    "detail": "Want me to find an electrician available this evening?"
    },
    {
     "text": "I need a cab to the airport at 4 am tomorrow and nothing is showing up for pre-booking",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help find a cab for tomorrow morning?"
+    "detail": "Want me to look for other cab options?"
    },
    {
     "text": "Geyser is not working and guests are coming tomorrow morning, have to get it repaired today",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help find an electrician who can repair it today?"
+    "detail": "Want me to help find an electrician who can repair the geyser today?"
    },
    {
     "text": "My phone screen cracked badly, I can't even see who is calling. Have to get it replaced today",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to find a phone repair shop for today?"
+    "detail": "Want me to find a phone repair shop nearby?"
    },
    {
     "text": "Washing machine motham water tho nindipoyindi, drain avvatledu. Evarinaina pilavali",
@@ -103,7 +103,7 @@
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help find a lab that can collect the sample from home tomorrow morning?"
+    "detail": "Want me to help find a lab that can collect Mummy's sample tomorrow morning?"
    },
    {
     "text": "Flat tyre on ORR and I don't have a spare, stuck here with the hazards on",
@@ -117,21 +117,21 @@
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help find a fridge repair technician today?"
+    "detail": "Want me to find a fridge repair technician who can come today?"
    },
    {
     "text": "I need to get my passport photos taken and printed before 5 today for the visa appointment",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to find a nearby photo studio that can print passport photos today?"
+    "detail": "Want me to find a nearby studio that can take and print passport photos today?"
    },
    {
     "text": "Water tanker raaledu, intlo water asalu ledu. Ippude tanker book cheyali",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help you find and book a water tanker?"
+    "detail": "Want me to help find and book a water tanker near you?"
    },
    {
     "text": "My specs broke in half and I can't work without them, need a new pair made by tomorrow",
@@ -145,14 +145,14 @@
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to find a nearby mechanic or battery service?"
+    "detail": "Want me to help find a nearby mechanic or battery replacement service?"
    },
    {
     "text": "Locked myself out of the flat, keys are inside. Need a locksmith now",
     "expect": "speak",
     "got": "speak",
     "ok": true,
-    "detail": "Want me to help you find a nearby locksmith?"
+    "detail": "Want me to find a locksmith nearby?"
    },
    {
     "text": "Bro worst day ever, everything is going wrong today",
@@ -160,14 +160,14 @@
     "seen": true,
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "I am so tired of this job, honestly don't know why I keep doing it",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "My cousin's bike got stolen last year, crazy story",
@@ -175,21 +175,21 @@
     "seen": true,
     "got": "quiet",
     "ok": true,
-    "detail": "The theft happened last year and concerns the user's cousin."
+    "detail": "The theft happened in the past and concerns the user's cousin."
    },
    {
     "text": "Remember when my car broke down on the way to Goa? That was hilarious",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "The breakdown happened in the past and is not a current problem."
+    "detail": "The breakdown happened in the past and no help is needed now."
    },
    {
     "text": "Ravi's car broke down again, poor guy, he is having a rough week",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "The car problem is Ravi's to handle, and the user is expressing sympathy."
+    "detail": "This is Ravi's problem to handle, not the user's."
    },
    {
     "text": "The AC stopped working yesterday but the technician already came and fixed it",
@@ -203,21 +203,21 @@
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "Had a huge fight with Priya, we are not talking right now",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "If my laptop ever dies I am finished, all my work is on it",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "The laptop failure is hypothetical, not a current problem."
+    "detail": "The laptop failure is hypothetical, so an interruption isn't needed."
    },
    {
     "text": "Movie chala bagundi ra, nuvvu kuda chudu",
@@ -231,21 +231,21 @@
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "I failed the interview. I really thought this one would work out",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "My tap was leaking but I tightened it myself, all good now",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "The user has already fixed the leak."
+    "detail": "The user has already fixed the tap."
    },
    {
     "text": "Happy birthday! Have a great year ahead",
@@ -259,21 +259,21 @@
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "Amma is in the hospital, the doctors are with her now. I'm just scared",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "Don't worry about the plumber, my landlord is sending his guy tomorrow",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "The landlord has already arranged a plumber for tomorrow."
+    "detail": "The landlord has already arranged a plumber."
    },
    {
     "text": "What time are we meeting on Saturday?",
@@ -287,14 +287,14 @@
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "no practical need seen"
+    "detail": "Staying quiet because the user needs a friend right now, not an errand."
    },
    {
     "text": "I think I'll buy a new phone sometime next year, this one is getting old",
     "expect": "quiet",
     "got": "quiet",
     "ok": true,
-    "detail": "The user is only considering a purchase next year."
+    "detail": "no practical need seen"
    }
   ]
  },
@@ -318,7 +318,7 @@
     "seen": true,
     "got": "scam",
     "ok": true,
-    "detail": "fake account or KYC block: The message threatens to block your SBI account and asks you to update your details through a link."
+    "detail": "fake account or KYC block: The message threatens to block your SBI account and asks you to click a link to update your details."
    },
    {
     "text": "Nanna, nenu ra. Idi naa kotha number. Urgent ga 20,000 kavali, hospital lo unna. Ee number ki GPay cheyyi, evvariki cheppaku.",
@@ -326,7 +326,7 @@
     "seen": true,
     "got": "scam",
     "ok": true,
-    "detail": "pretending to be a relative: The sender claims to be your child on a new number, urgently asks for money and tells you to keep it secret."
+    "detail": "pretending to be a relative: The sender claims to be a relative on a new number, urgently asks for ₹20,000 and says not to tell anyone."
    },
    {
     "text": "Congratulations! You have been selected for a work-from-home job. Earn Rs 5,000 daily by liking videos. Pay Rs 999 registration fee to start.",
@@ -334,7 +334,7 @@
     "seen": true,
     "got": "scam",
     "ok": true,
-    "detail": "fake job or paid task: The message promises easy earnings for liking videos but asks you to pay a registration fee first."
+    "detail": "fake job or paid task: The message promises easy money for liking videos but asks you to pay a registration fee first."
    },
    {
     "text": "Your electricity connection will be disconnected tonight at 9:30 PM as your bill is not updated. Call officer 98765xxxxx immediately and share the OTP.",
@@ -349,35 +349,35 @@
     "expect": "scam",
     "got": "scam",
     "ok": true,
-    "detail": "fake delivery or customs fee: The message claims a parcel is held at customs and pressures you to pay quickly through a suspicious link."
+    "detail": "fake delivery or customs fee: The message demands an urgent customs fee through a suspicious link for a parcel."
    },
    {
     "text": "You have won Rs 25,00,000 in the KBC lucky draw! To claim, send Rs 12,000 processing fee and your Aadhaar and bank details on WhatsApp to this number.",
     "expect": "scam",
     "got": "scam",
     "ok": true,
-    "detail": "fake prize or refund: The message promises a prize but asks you to pay a fee and share personal and bank details first."
+    "detail": "fake prize or refund: The message promises a large prize but asks you to pay a fee and share personal and bank details first."
    },
    {
     "text": "Sir main TRAI se bol raha hoon. Aapka number 2 ghante mein band ho jayega kyunki ispe illegal activity hui hai. Police verification ke liye abhi video call par aaiye aur kisi ko mat bataiye.",
     "expect": "scam",
     "got": "scam",
     "ok": true,
-    "detail": "fake police or arrest threat: The caller claims to be from TRAI, threatens to block your number and demands a secret police verification video call."
+    "detail": "fake police or arrest threat: The caller claims to be from TRAI, threatens to disconnect your number and demands a secret police verification video call."
    },
    {
     "text": "Hi, I'm from your bank's technical team. We detected a problem with your card. Please install the AnyDesk app and share the 9 digit code so we can fix it now.",
     "expect": "scam",
     "got": "scam",
     "ok": true,
-    "detail": "asking for a code or access: The sender claims to be from your bank and asks for a code that could give them access to your device."
+    "detail": "asking for a code or access: The caller claims to be from your bank and asks for a code that could give them access to your device."
    },
    {
     "text": "Guaranteed 40% monthly returns on crypto trading. Our expert group has limited seats. Deposit Rs 10,000 today to join, withdrawal anytime.",
     "expect": "scam",
     "got": "scam",
     "ok": true,
-    "detail": "fake loan or investment: The message promises unusually high guaranteed returns and pressures you to deposit money quickly."
+    "detail": "fake loan or investment: The message promises unrealistically high guaranteed returns and pressures you to deposit money today."
    },
    {
     "text": "Your Amazon order has been shipped and will arrive tomorrow by 9 PM.",

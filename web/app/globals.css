@@ -1,13 +1,17 @@
 @import "tailwindcss";
 
-/* Theme taken from the Builders 2026 kickoff deck: sky-blue ground, lime accent, deep-blue cards. */
+/* A night theme: near-black blue ground with a soft glow, glass panels, electric blue and the lime accent. */
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-fraunces);
-  --color-equal-deep: #0c63d0;
-  --color-equal-sky: #1a84f1;
-  --color-equal-card: #0850b8;
+}
+
+/* Colours are real variables (not copied into each rule), so a scope like .night can change what they mean. */
+@theme {
+  --color-equal-deep: #0b1533;
+  --color-equal-sky: #2f7bff;
+  --color-equal-card: #0d1530;
   --color-equal-lime: #cef82c;
   --color-equal-ink: #06255a;
 }
@@ -15,7 +19,10 @@
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   color: white;
-  background: linear-gradient(180deg, #0c63d0 0%, #3a97f3 55%, #1a84f1 100%) fixed;
+  background:
+    radial-gradient(60rem 40rem at 70% 35%, rgba(47, 123, 255, 0.22), transparent 60%),
+    radial-gradient(40rem 30rem at 15% 90%, rgba(206, 248, 44, 0.07), transparent 60%),
+    #050816 fixed;
 }
 
 /* Quiet scrollbars that suit the blue panels. */
@@ -24,9 +31,142 @@ body {
   scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
 }
 
+/* Glass: a panel that lets the glow through. */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+/* The big greeting: white running into electric blue and lime. */
+.hero-text {
+  background: linear-gradient(100deg, #ffffff 10%, #8fb8ff 45%, #cef82c 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* The box where you ask your Equal: it glows, so the eye lands on it first. */
+.ask-glow {
+  box-shadow:
+    0 0 0 1px rgba(143, 184, 255, 0.25),
+    0 0 60px rgba(47, 123, 255, 0.28);
+}
+
+/*
+ * The conversation at night. The screen was written with light surfaces and dark ink; inside
+ * this scope the same names mean dark surfaces and light ink, so every part follows at once.
+ */
+html:not(.light) .night {
+  --color-equal-ink: #e6edff;
+  background-color: #0a1022;
+  color: #e6edff;
+}
+html:not(.light) .night .bg-white {
+  background-color: #17213d;
+}
+html:not(.light) .night .bg-blue-50,
+html:not(.light) .night .bg-blue-100 {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+html:not(.light) .night .border-blue-100,
+html:not(.light) .night .border-blue-200 {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+html:not(.light) .night .hover\:bg-blue-50:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+/* Lime and other bright surfaces keep dark ink, whatever the scope says. */
+html:not(.light) .night .bg-equal-lime,
+html:not(.light) .night .bg-equal-lime * {
+  --color-equal-ink: #06255a;
+  color: #06255a;
+}
+html:not(.light) .night .bg-equal-ink {
+  background-color: #06255a;
+  color: #ffffff;
+}
+html:not(.light) .night .chat-ground {
+  background-color: #080d1c;
+  background-image: radial-gradient(rgba(143, 184, 255, 0.09) 1.2px, transparent 1.2px);
+}
+
+/* The ground behind a conversation: pale blue with a faint dot grid, so bubbles sit on something. */
+.chat-ground {
+  background-color: #eef5fe;
+  background-image: radial-gradient(rgba(12, 99, 208, 0.07) 1.2px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+/* Room for the phone's own edges when installed as an app. */
+.safe-top {
+  padding-top: max(0.625rem, env(safe-area-inset-top));
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* Headlines in the deck are a heavy italic serif. */
 .font-display {
   font-style: italic;
   font-weight: 900;
   letter-spacing: -0.01em;
+}
+
+/*
+ * Day theme, chosen in Settings. The screens are written with white ink on dark; here "white"
+ * means dark ink, panels turn to white glass, and anything that is truly a white card or a
+ * coloured button gets real white back for whatever sits inside it.
+ */
+html.light {
+  --color-white: #0b1533;
+  --color-equal-card: #ffffff;
+}
+html.light body {
+  color: #0b1533;
+  background:
+    radial-gradient(60rem 40rem at 70% 30%, rgba(47, 123, 255, 0.16), transparent 60%),
+    radial-gradient(40rem 30rem at 10% 95%, rgba(206, 248, 44, 0.22), transparent 60%),
+    #f1f5fc fixed;
+}
+html.light .bg-white {
+  --color-white: #ffffff;
+  background-color: #ffffff;
+}
+html.light :is(.bg-equal-sky, .bg-rose-500, .bg-rose-600, .bg-emerald-600, .bg-equal-ink, [class*="bg-equal-deep"]) {
+  --color-white: #ffffff;
+}
+html.light .night {
+  --color-white: #ffffff;
+  background-color: #ffffff;
+  color: #06255a;
+}
+html.light .text-equal-lime {
+  color: #1d5fe0;
+}
+html.light :is(.bg-equal-sky, [class*="bg-equal-deep"]) .text-equal-lime {
+  color: #cef82c;
+}
+html.light .text-amber-200 {
+  color: #92400e;
+}
+html.light .text-rose-200 {
+  color: #be123c;
+}
+html.light .glass {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(11, 21, 51, 0.1);
+}
+html.light .hero-text {
+  background: linear-gradient(100deg, #0b1533 10%, #2f7bff 55%, #5c8a00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+html.light .ask-glow {
+  box-shadow:
+    0 0 0 1px rgba(47, 123, 255, 0.3),
+    0 12px 50px rgba(47, 123, 255, 0.22);
+}
+html.light * {
+  scrollbar-color: rgba(11, 21, 51, 0.25) transparent;
 }

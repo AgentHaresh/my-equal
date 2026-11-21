@@ -1,14 +1,18 @@
 import { DB, Contact, Message, User, contactFor, findUser, save, spaceOf, uid } from "./store";
 import { analyse, askJson, butlerStatus } from "./butler";
 import { dueForLearning, learnRelation } from "./people";
+import { notify } from "./push";
 
 /**
  * Sending a message as the signed-in person: store it, deliver a copy to a real recipient,
  * and let each side's own assistant read it. Used for typed messages and for voice notes.
  */
-export async function deliver(db: DB, user: User, contact: Contact, text: string, voice?: Message["voice"]): Promise<string | null> {
+export async function deliver(db: DB, user: User, contact: Contact, text: string, voice?: Message["voice"], replyTo?: string, file?: Message["file"], forwarded?: boolean): Promise<string | null> {
   const at = new Date().toISOString();
-  const msg: Message = { id: uid(), contactId: contact.id, from: "me", text, at, voice };
+  const pair = uid();
+  // A reply must point at a message in this same chat.
+  const quoted = replyTo ? db.messages.find((m) => m.id === replyTo && m.contactId === contact.id && m.from !== "butler") : undefined;
+  const msg: Message = { id: uid(), contactId: contact.id, from: "me", text, at, voice, pair, replyTo: quoted?.id, file, forwarded: forwarded || undefined };
   db.messages.push(msg);
   contact.lastContactAt = at;
 
@@ -17,16 +21,21 @@ export async function deliver(db: DB, user: User, contact: Contact, text: string
   if (other) {
     const theirs = spaceOf(other.id);
     const me = contactFor(theirs, user);
-    const copy: Message = { id: uid(), contactId: me.id, from: "them", text, at, voice };
+    // On their side the reply points at their own copy of the quoted message.
+    const theirQuoted = quoted?.pair ? theirs.messages.find((m) => m.pair === quoted.pair && m.contactId === me.id) : undefined;
+    const copy: Message = { id: uid(), contactId: me.id, from: "them", text, at, voice, pair, replyTo: theirQuoted?.id, file, forwarded: forwarded || undefined };
     theirs.messages.push(copy);
     me.lastContactAt = at;
-    void analyse(theirs, me, copy).then(() => save()); // does not hold up the sender
+    // If their app is not open right now, reach them with a notification.
+    if (!other.seenAt || Date.now() - Date.parse(other.seenAt) > 4000)
+      notify(other.id, { title: user.name, body: voice ? "Voice note" : text ? text.slice(0, 140) : file ? `Sent ${file.name}` : "New message", tag: `chat-${me.id}`, url: `/?c=${encodeURIComponent(me.id)}` });
+    if (text) void analyse(theirs, me, copy).then(() => save()); // does not hold up the sender
     if (dueForLearning(theirs, me)) void learnRelation(theirs, me).then(() => save());
     if (dueForLearning(db, contact)) void learnRelation(db, contact).then(() => save());
   }
   save(); // the message is stored even if the reading fails
 
-  const error = contact.unknown ? null : await analyse(db, contact, msg);
+  const error = contact.unknown || !text ? null : await analyse(db, contact, msg);
   save();
   return error;
 }

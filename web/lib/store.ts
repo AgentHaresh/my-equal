@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { sampleSpace } from "./sample";
+import { poke } from "./live";
 
 export type Contact = {
   id: string;
@@ -15,6 +16,8 @@ export type Contact = {
   sample?: boolean; // demo contact that comes with every new account
   unknown?: boolean; // a number that is not in contacts
   owner?: string; // set when the thread is on a protected family member's phone, not the user's
+  starred?: boolean; // a person the user keeps at hand in Starred
+  readAt?: string; // when the user last read this chat; later messages from them are unread
 };
 export type Message = {
   id: string;
@@ -24,6 +27,15 @@ export type Message = {
   at: string;
   scam?: { pattern: string; reason: string; advice: string }; // set when the scam shield flags it
   voice?: { language?: string; english?: string }; // set when the message was spoken; "english" is a translation for the reader
+  file?: { id: string; name: string; type: string; size: number }; // a photo or file sent with the message; the bytes live on disk
+  replyTo?: string; // the id of the message this one answers, in the same person's space
+  editedAt?: string;
+  deleted?: boolean; // the sender took it back; the text is gone, the place it stood remains
+  starred?: boolean; // kept by me to find again; the other person never sees this
+  readAt?: string; // on a message I sent: when the other person read it
+  reactions?: { me?: string; them?: string }; // one reaction from each side
+  forwarded?: boolean; // passed on from another chat
+  pair?: string; // shared by the two copies of a message between real people, so an edit reaches both
 };
 export type Memory = {
   id: string;
@@ -37,6 +49,11 @@ export type Memory = {
   timed?: boolean; // true when "when" carries a time of day, not just a date
   sourceMessageId?: string;
   sample?: boolean;
+  important?: boolean; // the user asked to be reminded of this themselves
+  remindAt?: string | null; // when to remind, which can be well before "when"
+  callMe?: boolean; // Equal rings the user at remindAt and says it aloud
+  rangAt?: string; // set once that call has been shown
+  notifiedAt?: string; // set once a notification about it has been sent
 };
 export type Suggestion = {
   id: string;
@@ -48,6 +65,7 @@ export type Suggestion = {
   need?: string;
   status: "new" | "accepted" | "dismissed";
   createdAt: string;
+  important?: boolean;
 };
 export type GateEntry = {
   messageId: string;
@@ -99,10 +117,13 @@ export type User = {
   name: string;
   picture?: string;
   createdAt: string;
+  phone?: string; // set for people who signed in with their phone number, in international form
   test?: boolean; // created by the automated tests; never shown to real people
+  seenAt?: string; // when their app last checked in; kept in memory, written with the next save
 };
 /** One person's private space: their chats, what Equal remembers for them, and its offers. */
 export type DB = {
+  demo?: boolean; // the user asked for the demo chats; real accounts start without them
   screens?: ScreenCall[];
   jobs: Job[];
   contacts: Contact[];
@@ -156,6 +177,11 @@ export function root(): Root {
     try {
       const r = JSON.parse(fs.readFileSync(FILE, "utf8")) as Root;
       holder.__equalRoot = r.users && r.spaces ? r : { users: [], spaces: {} };
+      // Real accounts carry no made-up chats unless the person asked for the demo.
+      for (const u of holder.__equalRoot.users) {
+        const space = holder.__equalRoot.spaces[u.id];
+        if (space && !u.test && !space.demo) removeSamples(space);
+      }
     } catch {
       holder.__equalRoot = { users: [], spaces: {} };
     }
@@ -168,12 +194,36 @@ export function save(_db?: DB) {
   void _db;
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
   fs.writeFileSync(FILE, JSON.stringify(root()));
+  poke(); // tell every open app that something changed
 }
 
-/** A person's space, created with the sample contacts on first use. */
+/** A space with nothing in it: how a real account starts. */
+export function emptySpace(): DB {
+  return { jobs: [], contacts: [], messages: [], memories: [], suggestions: [], dismissed: [], gateLog: [] };
+}
+
+/** Take the demo chats out of a space, with everything that hangs off them. Real chats are untouched. */
+export function removeSamples(space: DB) {
+  const gone = new Set(space.contacts.filter((c) => c.sample).map((c) => c.id));
+  if (!gone.size) return;
+  space.contacts = space.contacts.filter((c) => !gone.has(c.id));
+  space.messages = space.messages.filter((m) => !gone.has(m.contactId));
+  space.memories = space.memories.filter((m) => !gone.has(m.contactId));
+  space.suggestions = space.suggestions.filter((x) => !gone.has(x.contactId));
+  space.jobs = space.jobs.filter((j) => !gone.has(j.contactId));
+  if (space.screens) space.screens = space.screens.filter((x) => !gone.has(x.contactId));
+}
+
+/**
+ * A person's space, created on first use. A real account starts empty. The automated tests'
+ * accounts start with the demo chats, because the tests exercise features against them.
+ */
 export function spaceOf(userId: string): DB {
   const r = root();
-  if (!r.spaces[userId]) r.spaces[userId] = seed();
+  if (!r.spaces[userId]) {
+    const test = r.users.find((u) => u.id === userId)?.test;
+    r.spaces[userId] = test ? seed() : emptySpace();
+  }
   return r.spaces[userId];
 }
 
@@ -197,11 +247,30 @@ export function upsertUser(profile: { email: string; name: string; picture?: str
   return user;
 }
 
+/** The account for a phone number, created the first time that number signs in. */
+export function upsertPhoneUser(phone: string, name: string | undefined, test = false): User {
+  const r = root();
+  let user = r.users.find((u) => u.phone === phone);
+  if (user) {
+    if (name) user.name = name;
+  } else {
+    user = { id: uid(), email: "", phone, name: name || `+${phone.slice(1, 3)} ${phone.slice(3)}`, createdAt: new Date().toISOString(), ...(test ? { test: true } : {}) };
+    r.users.push(user);
+  }
+  spaceOf(user.id);
+  save();
+  return user;
+}
+
+export function findUserByPhone(phone: string): User | undefined {
+  return root().users.find((u) => u.phone === phone);
+}
+
 /** Find, or create, the contact in `space` that stands for the real person `other`. */
 export function contactFor(space: DB, other: User): Contact {
   let c = space.contacts.find((x) => x.userId === other.id);
   if (!c) {
-    c = { id: `u-${other.id}`, name: other.name, relation: "on My Equal", close: false, lastContactAt: new Date().toISOString(), userId: other.id, picture: other.picture };
+    c = { id: `u-${other.id}`, name: other.name, relation: "on My Equal", close: false, lastContactAt: new Date().toISOString(), userId: other.id, picture: other.picture, readAt: new Date(0).toISOString() };
     space.contacts.unshift(c);
   } else {
     c.name = other.name;
@@ -250,7 +319,7 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
         (usual ? `You usually talk every ${usual <= 1 ? "day" : `${Math.round(usual)} days`}. ` : "") +
         (recent ? `Something to ask about: ${recent.fact.replace(/\.$/, "")}${whenPhrase(recent.when, now)}.` : "A quick call or voice note would do."),
       status: "new",
-      createdAt: new Date(now).toISOString(),
+      createdAt: c.lastContactAt,
     });
   }
   for (const m of db.memories) {
@@ -267,7 +336,7 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
       title: `Ask ${c.name} how it went`,
       detail: `${m.fact.replace(/\.$/, "")}${whenPhrase(m.when, now)}.`,
       status: "new",
-      createdAt: new Date(now).toISOString(),
+      createdAt: c.lastContactAt,
     });
   }
   // My own commitments: things I said I would do, and plans of mine, that are due about now.
@@ -276,19 +345,26 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
   for (const m of db.memories) {
     if (m.status !== "open" || !m.when || !(m.about === "user" || m.kind === "promise")) continue;
     const t = new Date(m.when).getTime();
-    if (t < start - 3 * DAY || t >= start + 2 * DAY) continue;
+    // Things the user asked to be reminded of stay listed however far off they are.
+    if (t < start - 3 * DAY || (t >= start + 2 * DAY && !m.important)) continue;
     const c = db.contacts.find((x) => x.id === m.contactId);
     if (!c || c.owner) continue;
-    const day = t < start ? "Overdue" : t < start + DAY ? "Today" : "Tomorrow";
+    const day =
+      t < start ? "Overdue" : t < start + DAY ? "Today" : t < start + 2 * DAY ? "Tomorrow" : new Date(t).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+    const ring =
+      m.callMe && m.remindAt && !m.rangAt
+        ? ` · Equal will call you at ${new Date(m.remindAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}`
+        : "";
     const time = m.timed ? `, ${new Date(t).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}` : "";
     mine.push({
       id: `rm-${m.id}`,
       type: "reminder",
       contactId: c.id,
       title: m.fact,
-      detail: `${day}${time} · ${c.id === "self" ? "from your notes" : `from your chat with ${c.name}`}`,
+      detail: `${day}${time} · ${c.id === "self" ? "from your notes" : `from your chat with ${c.name}`}${ring}`,
       status: "new",
       createdAt: m.when,
+      important: m.important,
     });
   }
   mine.sort((a, b) => a.createdAt.localeCompare(b.createdAt));

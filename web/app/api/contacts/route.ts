@@ -9,8 +9,10 @@ export async function POST(request: Request) {
   const ctx = context(request);
   if (!ctx) return unauthorised();
   const body = await request.json().catch(() => null);
-  const contact = ctx.db.contacts.find((c) => c.id === body?.contactId && !c.unknown);
+  const contact = ctx.db.contacts.find((c) => c.id === body?.contactId && !c.unknown && !c.owner);
   if (!contact) return Response.json({ error: "No such contact." }, { status: 400 });
+  // Starring a person keeps them at hand in Starred. It says nothing about the relationship.
+  if (typeof body?.starred === "boolean") contact.starred = body.starred || undefined;
   if (typeof body?.relation === "string" && (RELATIONS as readonly string[]).includes(body.relation)) {
     contact.relation = body.relation;
     contact.relationSource = "user";

@@ -26,7 +26,7 @@ Return ONLY a JSON object with this shape:
 }
 
 MEMORIES: facts from the NEWEST message only that are worth remembering later about the contact or the user:
-appointments, exams, interviews, trips, health worries, promises made by either side. "fact" is short and in English. "about" is "user" when the fact concerns the user's own life, and "contact" when it concerns the contact.
+appointments, exams, interviews, trips, health worries, promises made by either side. "fact" is short and in English. The user reads these as their own notes, so a fact about the user is written as a plain note with no subject: "Demo at 2 pm", "Send Ravi the deck", never "User has a demo" or "The user will send". A fact about the contact names them by CONTACT's name. "about" is "user" when the fact concerns the user's own life, and "contact" when it concerns the contact.
 "when" is an ISO date (YYYY-MM-DD) if the message places it in time, or YYYY-MM-DDTHH:MM (24-hour, Indian time) if it also gives a time of day. Use TODAY and WEEKDAY to resolve words like Thursday, tomorrow or tonight. Otherwise null.
 The user's own plans and promises matter most, because they must not be forgotten: "I have a client meeting at 4", "I'll send you the deck by Friday", "I need to renew the insurance this week". Record each with "about": "user", and use kind "promise" when the user said they would do something for someone.
 A problem the user is having right now (a breakdown, an illness, being stuck, something not working) is NOT a plan or a promise. If you record it at all, give it "when": null, so it is never shown as a reminder. Do not repeat a plan that KNOWN_MEMORIES already holds in other words.
@@ -43,7 +43,8 @@ INTENT: fill only if the NEWEST message is from "me" and reveals a practical pro
 when it is hypothetical or in the past, or when interrupting would be tactless (grief, a fight, bad news).
 "reason" explains the decision in one short sentence.
 "offer" is what you would say to the user, privately, in one warm short sentence starting with a verb phrase like "Want me to".
-If there is no practical problem at all, "intent" is null.`;
+If the newest message from "me" shares bad news, sadness or frustration with nothing practical to be done about it, still return an "intent" with "speak": false, "urgency": 1 and "category": "other", and a "reason" saying you are staying quiet because the user needs a friend right now, not an errand.
+If the message is ordinary conversation with no problem in it at all, "intent" is null.`;
 
 type Analysis = {
   memories?: { fact: string; about?: string; kind: string; when: string | null }[];
@@ -114,13 +115,35 @@ export async function askJson<T>(system: string, payload: unknown): Promise<T> {
 
 const KINDS = ["event", "promise", "worry", "preference"];
 
+/** The most memories shown to the model alongside one new message. */
+export const KNOWN_LIMIT = 40;
+
+/**
+ * The words of a text, in any script. Marks (\p{M}) are kept, because in Telugu, Hindi and other
+ * Indian scripts the vowel signs are marks: splitting on them would cut every word into pieces.
+ */
+export const wordsOf = (t: string) => t.toLowerCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length > 2);
+
 /** Analyse the newest message in a thread and apply the result to the db. Returns an error string if it failed. */
 export async function analyse(db: DB, contact: Contact, msg: Message, memoriesOnly = false): Promise<string | null> {
   if (butlerStatus() !== "online") return butlerStatus();
-  const thread = db.messages.filter((m) => m.contactId === contact.id).slice(-12);
+  const thread = db.messages.filter((m) => m.contactId === contact.id && !m.deleted).slice(-12);
+  // What is already known is ranked and capped, so a long friendship does not make every later
+  // reading slower and worse. First: anything sharing a word with the new message (so it is not saved
+  // twice, and can be marked done). Then: dated things nearest to now. Then: the newest undated ones.
+  const at = Date.parse(msg.at);
+  const said = new Set(wordsOf(msg.text));
+  const day = 86400000;
+  const rank = (m: DB["memories"][number]) => {
+    if (wordsOf(m.fact).some((w) => said.has(w))) return -1;
+    return m.when ? Math.abs(Date.parse(m.when) - at) / day : 30 + Math.max(0, at - Date.parse(m.createdAt)) / day;
+  };
   const known = db.memories
     .filter((m) => m.status === "open" && (m.contactId === contact.id || (m.about === "user" && m.when)))
-    .map((m) => ({ id: m.id, fact: m.fact, when: m.when }));
+    .map((m) => ({ m, r: rank(m) }))
+    .sort((a, b) => a.r - b.r)
+    .slice(0, KNOWN_LIMIT)
+    .map(({ m }) => ({ id: m.id, fact: m.fact, when: m.when }));
   let a: Analysis;
   try {
     a = await askJson<Analysis>(SYSTEM, {
@@ -153,7 +176,7 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
     // The same plan said twice in different words (for the same day) is kept once. Names and
     // everyday verbs are ignored, so "send Ravi the deck" is not confused with "send Ravi the shortlist".
     const ignore = new Set(["send", "call", "with", "from", "that", "this", "have", "will", "about", "today", "tomorrow", "need", "needs", "promised", ...db.contacts.flatMap((c) => c.name.toLowerCase().split(/\s+/))]);
-    const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !ignore.has(w)));
+    const words = (t: string) => new Set(wordsOf(t).filter((w) => w.length > 3 && !ignore.has(w)));
     const mine = words(m.fact);
     const same = when
       ? db.memories.some((x) => {

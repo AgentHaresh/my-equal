@@ -4,7 +4,7 @@ set -euo pipefail
 cd /opt/butler
 
 # Keep only the settings the app needs from the uploaded key file.
-grep -E '^(OPENAI_|GOOGLE_CLIENT_ID)' .env > .env.keep || true
+grep -E '^(OPENAI_|GOOGLE_CLIENT_ID|FAST2SMS_KEY|TWILIO_)' .env > .env.keep || true
 mv .env.keep .env
 chmod 600 .env
 
