@@ -59,6 +59,30 @@ async function sendSms(phone: string, code: string): Promise<void> {
   }
 }
 
+/** Send an ordinary text (not a code), for an invitation. Throws if it cannot be sent. */
+export async function sendText(phone: string, message: string): Promise<void> {
+  const provider = smsProvider();
+  if (!provider) throw new Error("No SMS service is connected.");
+  if (provider === "fast2sms") {
+    if (!phone.startsWith("+91")) throw new Error("This SMS service only reaches Indian numbers.");
+    const res = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+      method: "POST",
+      headers: { authorization: process.env.FAST2SMS_KEY!, "Content-Type": "application/json" },
+      body: JSON.stringify({ route: "q", message, language: "english", flash: 0, numbers: phone.slice(3) }),
+    });
+    const r = await res.json().catch(() => null);
+    if (!res.ok || r?.return === false) throw new Error(typeof r?.message === "string" ? `The SMS service said: ${r.message}` : "The SMS service refused to send it.");
+  } else {
+    const sid = process.env.TWILIO_ACCOUNT_SID!;
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: { Authorization: "Basic " + Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64"), "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ To: phone, From: process.env.TWILIO_FROM!, Body: message }),
+    });
+    if (!res.ok) throw new Error("The SMS service refused to send it.");
+  }
+}
+
 const hashOf = (code: string, salt: string) => crypto.createHash("sha256").update(salt + code).digest("hex");
 
 export type Asked = { ok: true; sent: boolean; shownCode?: string } | { ok: false; status: number; error: string };

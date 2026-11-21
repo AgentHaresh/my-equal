@@ -5,7 +5,11 @@ import { anon, checker } from "./helper.mjs";
 
 const B = process.argv[2] ?? "http://localhost:3217";
 const SECRET = process.env.TEST_LOGIN_SECRET ?? "localtest";
-const local = /localhost|127\.0\.0\.1/.test(B);
+// Asking for a code texts a real phone when an SMS service is connected. This test uses made-up
+// numbers, so that part runs ONLY against a local server that has no SMS service.
+const smsConnected = (await (await fetch(B + "/api/auth")).json()).sms === true;
+const local = /localhost|127\.0\.0\.1/.test(B) && !smsConnected;
+if (smsConnected) console.log("An SMS service is connected: skipping every step that would send a text.");
 const { check, finish } = checker();
 const auth = (body, cookie) => fetch(B + "/api/auth", { method: "POST", headers: { "Content-Type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });
 const cookieOf = (res) => res.headers.get("set-cookie")?.split(";")[0];
@@ -45,7 +49,16 @@ check("my own number cannot be chatted with", (await asha.call("/api/chats", "PO
 check("starting a chat needs sign-in", (await anon(B).call("/api/chats", "POST", { phone: p2 })).status === 401);
 check("other people's numbers are not given out", !JSON.stringify(started).includes(p2));
 
-// --- the code itself (local only)
+// --- inviting a number that is not here yet. Test accounts never send a real text: the server
+// prepares the words and hands them back for the person's own phone to send.
+res = await asha.call("/api/invite", "POST", { phone: number() });
+const inv = await res.json();
+check("for a number not on Equal, an invitation is prepared in my name with the link", res.status === 503 && /^Asha invited you to chat on Equal/.test(inv.message ?? "") && /https?:\/\//.test(inv.message ?? "") && /^\+91\d{10}$/.test(inv.phone ?? ""), JSON.stringify(inv).slice(0, 160));
+check("someone already on Equal is not invited", (await asha.call("/api/invite", "POST", { phone: p2 })).status === 409);
+check("a bad number is refused", (await asha.call("/api/invite", "POST", { phone: "123" })).status === 400);
+check("inviting needs sign-in", (await anon(B).call("/api/invite", "POST", { phone: number() })).status === 401);
+
+// --- the code itself (local only, and only with no SMS service)
 if (local) {
   const p3 = number();
   res = await auth({ phone: p3 });

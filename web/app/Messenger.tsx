@@ -66,7 +66,7 @@ function Wordmark() {
           <span key={i} className="h-[7px] w-[7px] rounded-full bg-equal-lime" />
         ))}
       </span>
-      <span className="text-xl font-semibold lowercase tracking-tight text-white">my equal</span>
+      <span className="text-xl font-semibold tracking-tight text-white">Equal</span>
     </span>
   );
 }
@@ -93,6 +93,8 @@ export default function Messenger({ role }: Props) {
   const [pane, setPane] = useState<Pane>(() => (isMe ? (param("c") ? "chat" : "equal") : "chat"));
   const [newNumber, setNewNumber] = useState("");
   const [numberNote, setNumberNote] = useState<string | null>(null);
+  const [inviteFor, setInviteFor] = useState<string | null>(null); // a number that is not on Equal yet
+  const [inviteSms, setInviteSms] = useState<string | null>(null); // a link that opens the phone's own messages app
   // The person whose details are open on the home screen, and what is typed to find or add to them.
   const [personId, setPersonId] = useState<string | null>(null);
   const [personQuery, setPersonQuery] = useState("");
@@ -560,7 +562,9 @@ export default function Messenger({ role }: Props) {
     setNumberNote(null);
     const res = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: newNumber }) });
     const next = await res.json();
-    if (!res.ok) return setNumberNote(next.error ?? "Could not start that chat.");
+    setInviteSms(null);
+    setInviteFor(res.status === 404 ? newNumber : null);
+    if (!res.ok) return setNumberNote(res.status === 404 ? "That number is not on Equal yet. Invite them?" : (next.error ?? "Could not start that chat."));
     setSnap(next);
     setNewNumber("");
     if (next.contactId) open(next.contactId);
@@ -574,6 +578,25 @@ export default function Messenger({ role }: Props) {
     if (next.contacts) {
       setSnap(next);
       setPersonFact("");
+    }
+  }
+
+  /** Text the invitation to that number. If the server cannot, offer to send it from this phone. */
+  async function sendInvite() {
+    if (!inviteFor) return;
+    setNumberNote("Sending the invitation…");
+    try {
+      const res = await fetch("/api/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: inviteFor }) });
+      const r = await res.json();
+      if (res.ok) {
+        setInviteFor(null);
+        setNewNumber("");
+        return setNumberNote(`Invitation sent by text to ${r.phone}.`);
+      }
+      setNumberNote(r.error ?? "Could not send it.");
+      if (r.phone && r.message) setInviteSms(`sms:${r.phone}?body=${encodeURIComponent(r.message)}`);
+    } catch {
+      setNumberNote("Could not send it. Check your connection.");
     }
   }
 
@@ -1126,10 +1149,20 @@ export default function Messenger({ role }: Props) {
             {numberNote && (
               <div className="px-5 pb-2 text-xs text-amber-200">
                 <p className="break-words">{numberNote}</p>
-                {/not on My Equal/.test(numberNote) && (
-                  <button onClick={copyInvite} className="mt-1.5 rounded-full bg-equal-lime px-3 py-1 text-xs font-bold text-equal-ink">
-                    Copy invite link
-                  </button>
+                {inviteFor && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <button onClick={sendInvite} className="rounded-full bg-equal-lime px-3 py-1 text-xs font-bold text-equal-ink">
+                      Text them the invite
+                    </button>
+                    {inviteSms && (
+                      <a href={inviteSms} className="rounded-full bg-equal-sky px-3 py-1 text-xs font-bold text-white">
+                        Send from my phone
+                      </a>
+                    )}
+                    <button onClick={copyInvite} className="rounded-full border border-white/30 px-3 py-1 text-xs font-semibold text-white/90">
+                      Copy link
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -1601,7 +1634,7 @@ export default function Messenger({ role }: Props) {
                 <input
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ask me anything you've forgotten"
+                  placeholder="Ask me anything, or tell me what to remember"
                   className="min-w-0 flex-1 bg-transparent px-1 py-3 text-lg outline-none placeholder:text-white/50"
                 />
                 <button disabled={asking || !question.trim()} className="rounded-full bg-equal-lime px-6 py-3 text-base font-bold text-equal-ink disabled:opacity-40">

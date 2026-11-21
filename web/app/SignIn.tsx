@@ -99,7 +99,7 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
             <span key={i} className="h-2.5 w-2.5 rounded-full bg-equal-lime" />
           ))}
         </span>
-        <span className="text-3xl font-semibold lowercase tracking-tight">my equal</span>
+        <span className="text-3xl font-semibold tracking-tight">Equal</span>
       </span>
 
       <div className="max-w-xl">
