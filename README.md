@@ -8,8 +8,6 @@ Built solo at **Builders 2026** (OpenAI x Equal AI, Hyderabad, 21-22 November 20
 
 **Live:** https://54-213-236-215.sslip.io
 **Scoreboard:** https://54-213-236-215.sslip.io/scoreboard
-**Slides:** https://54-213-236-215.sslip.io/slides (also `slides/My-Equal-slides.pdf`)
-**Film:** `brag-output/brag.mp4` (50 seconds; made before the redesign, so it shows the earlier look)
 
 ## What it does
 
@@ -212,7 +210,3 @@ One Ubuntu server on AWS, with Caddy providing HTTPS (the microphone, camera and
 - `deploy/` server setup and deploy scripts
 - `docs/` how context is managed, and the architecture with its limits
 - `SECURITY.md` what protects people's data, and what does not yet
-- `slides/` the five-slide deck
-- `brag-output/` the launch film, its poster and post text
-- `BUILD-PLAN.md` the plan written on Saturday morning; the build went well past it
-- `research-findings.md` the research done before the event: complaints, sources and scored ideas
