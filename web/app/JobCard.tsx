@@ -34,15 +34,30 @@ function quoteLine(c: Call) {
   return parts.join(" · ") || "No price given";
 }
 
-export default function JobCard({ job, onBook }: { job: Job; onBook: (jobId: string, callId: string) => void }) {
+export default function JobCard({ job, onBook, onRemove }: { job: Job; onBook: (jobId: string, callId: string) => void; onRemove?: (jobId: string) => void }) {
   const [origin] = useState(() => (typeof window !== "undefined" ? window.location.origin : ""));
   const booked = job.status === "booked";
   const anyQuote = job.calls.some((c) => c.status === "done" && c.quote);
 
   return (
     <div className="rounded-2xl bg-white p-3 text-equal-ink shadow-lg">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-equal-sky">
-        {booked ? "Booked" : job.status === "ready" ? "Options ready" : "Calling around"}
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-equal-sky">
+          {booked ? "Booked" : job.status === "ready" ? "Options ready" : "Calling around"}
+        </div>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={() => {
+              if (booked || window.confirm(job.status === "calling" ? "Stop calling around and remove this?" : "Remove this?")) onRemove(job.id);
+            }}
+            aria-label="Remove this"
+            title="Remove"
+            className="-mr-1 -mt-1 rounded-full px-2 py-0.5 text-xs font-semibold text-equal-ink/50 hover:bg-blue-50 hover:text-equal-ink"
+          >
+            {booked ? "Clear ✕" : job.status === "calling" ? "Stop ✕" : "Remove ✕"}
+          </button>
+        )}
       </div>
       <div className="mt-0.5 text-sm text-equal-ink/80">{job.need}</div>
 

@@ -26,7 +26,7 @@ Return ONLY JSON: {"known": boolean, "answer": string, "source_ids": [number], "
 
 const STOP = new Set("the a an is are was were did do does what when where who whom how why my me i you your to of for and in on at with about has have had will would should can could tell say said any".split(" "));
 
-export type Answer = { known: boolean; answer: string; sources: { who: string; from: string; text: string; at: string }[]; error?: string; remembered?: { about: string; fact: string }; errand?: { jobId: string; need: string } };
+export type Answer = { known: boolean; answer: string; sources: { who: string; from: string; text: string; at: string }[]; error?: string; remembered?: { about: string; fact: string }; errand?: { jobId: string; need: string; already?: boolean } };
 
 const CATEGORIES = ["mechanic", "doctor", "pharmacy", "plumber", "electrician", "travel", "other"];
 
@@ -102,7 +102,9 @@ export async function askEqual(db: DB, question: string): Promise<Answer> {
     const category = CATEGORIES.includes(String(r.errand?.category)) ? String(r.errand?.category) : "other";
     const busy = db.jobs.find((j) => j.category === category && j.status === "calling");
     if (busy) {
-      errand = { jobId: busy.id, need: busy.need };
+      // One call-around per kind of need at a time. Say so plainly, instead of promising a new one.
+      errand = { jobId: busy.id, need: busy.need, already: true };
+      r.answer = "I'm already calling around for this. See it under Right now below. Tap Stop on it if you want me to start a fresh search.";
     } else {
       const s = { id: uid(), type: "intent" as const, contactId: notesContact(db).id, title: `Help with: ${need}`, detail: need, category, need, status: "accepted" as const, createdAt: new Date().toISOString() };
       db.suggestions.push(s);

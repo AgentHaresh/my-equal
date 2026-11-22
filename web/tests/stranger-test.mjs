@@ -40,6 +40,17 @@ check("asking for a mechanic starts an errand", Boolean(ans.errand?.jobId), ans.
 const after = await me.json("/api/state");
 const job = after.jobs.find((j) => j.id === ans.errand?.jobId);
 check("the call-around is running, with nothing booked", job?.status === "calling" && !job?.bookedCallId);
+// Telling Equal the problem in Telugu-English works the same way; asking again while it is still
+// calling says so instead of promising a second search.
+const again = await me.json("/api/ask", "POST", { question: "bro naa bandi kaarab ayindi! I need to get it repaired!" });
+check("asking again while calling points at the running one", again.errand?.jobId === ans.errand?.jobId && again.errand?.already === true, again.answer);
+// The user can stop and remove a call-around; asking afterwards starts a fresh one.
+const removed = await me.call("/api/jobs", "DELETE", { jobId: ans.errand?.jobId });
+const afterRemove = await removed.json();
+check("a call-around can be stopped and removed", removed.status === 200 && !afterRemove.jobs.some((j) => j.id === ans.errand?.jobId));
+check("a removed call-around's provider link no longer works", (await me.call(`/api/calls?id=${job?.calls?.[0]?.id}`)).status >= 400);
+const fresh = await me.json("/api/ask", "POST", { question: "bro naa bandi kaarab ayindi! I need to get it repaired!" });
+check("after removing, the same request starts a new call-around", Boolean(fresh.errand?.jobId) && fresh.errand.jobId !== ans.errand?.jobId && !fresh.errand.already, fresh.answer);
 check("an ordinary question starts no errand", !(await me.json("/api/ask", "POST", { question: "When is Farah's lunch?" })).errand);
 
 finish();

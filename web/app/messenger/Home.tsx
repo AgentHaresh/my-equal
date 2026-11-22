@@ -30,6 +30,7 @@ type Props = {
   urgent: boolean;
   others: Suggestion[];
   bookProvider: (jobId: string, callId: string) => Promise<void>;
+  removeJob: (jobId: string) => Promise<void>;
   draftFor: (s: Suggestion) => void;
   placeCall: (c: Contact, video?: boolean) => void;
   people: Contact[];
@@ -56,7 +57,7 @@ type Props = {
 };
 
 export default function Home(props: Props) {
-  const { pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, draftFor, placeCall } = props;
+  const { pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, removeJob, draftFor, placeCall } = props;
   const { people, peopleShown, person, personMemories, personQuery, setPersonQuery, setPersonId, personFact, setPersonFact, open, describe, addFact, forget } = props;
   const { importing, importChat, importNote, importWho, contact, api, setSnap, setNotice } = props;
   return (
@@ -120,6 +121,11 @@ export default function Home(props: Props) {
             <div className="text-xs text-equal-ink/60">{reply.question}</div>
             <div className="mt-1 whitespace-pre-wrap text-sm font-medium">{reply.error ? `I could not answer: ${reply.error}` : reply.answer}</div>
             {reply.remembered && <div className="mt-2 rounded-lg bg-equal-lime px-2.5 py-1.5 text-xs font-semibold text-equal-ink">Saved about {reply.remembered.about}: {reply.remembered.fact}</div>}
+            {reply.errand && (
+              <div className="mt-2 rounded-lg bg-equal-lime px-2.5 py-1.5 text-xs font-semibold text-equal-ink">
+                {reply.errand.already ? "Already calling around" : "Calling around now"}: {reply.errand.need} · see Right now below
+              </div>
+            )}
             {reply.sources?.map((src, i) => (
               <div key={i} className="mt-2 border-l-2 border-equal-sky pl-2 text-xs text-equal-ink/70">
                 <span className="font-semibold">
@@ -162,7 +168,7 @@ export default function Home(props: Props) {
         <h2 className={`order-[-10000] ${label} ${urgent ? "text-equal-lime" : "text-white/70"}`}>{urgent ? "Right now" : "For you"}</h2>
         {others.length === 0 && snap.jobs.length === 0 && <p className="text-sm text-white/70">Nothing needs you right now.</p>}
         {[...snap.jobs].reverse().map((j) => (
-          <JobCard key={j.id} job={j} onBook={bookProvider} />
+          <JobCard key={j.id} job={j} onBook={bookProvider} onRemove={removeJob} />
         ))}
         {others.map((s) => (
           <div key={s.id} className={`rounded-2xl border p-3 ${s.type === "guardian" ? "border-rose-300 bg-rose-600" : "border-white/20 bg-white/10"} ${s.type === "guardian" || s.type === "intent" ? "order-first" : ""}`}>

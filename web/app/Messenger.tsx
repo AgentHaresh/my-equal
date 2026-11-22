@@ -450,6 +450,11 @@ export default function Messenger({ role }: Props) {
     if (next.contacts) setSnap(next);
   }
 
+  async function removeJob(jobId: string) {
+    const next = await api("/api/jobs", "DELETE", { jobId });
+    if (next.contacts) setSnap(next);
+  }
+
   /** Start a chat with someone by their phone number, if they are on My Equal. */
   async function startByNumber() {
     setNumberNote(null);
@@ -754,7 +759,7 @@ export default function Messenger({ role }: Props) {
 
         {isMe && (
           <Home
-            {...{ pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, draftFor, placeCall }}
+            {...{ pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, removeJob, draftFor, placeCall }}
             {...{ people, peopleShown, person, personMemories, personQuery, setPersonQuery, setPersonId, personFact, setPersonFact, open, describe, addFact, forget }}
             {...{ importing, importChat, importNote, importWho, contact, api, setSnap, setNotice }}
           />
