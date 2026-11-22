@@ -1,20 +1,22 @@
 import { upsertPhoneUser, upsertUser, User } from "@/lib/store";
 import { checkCode, normalisePhone, requestCode, smsProvider } from "@/lib/otp";
 import { allow, clientAddress, tooMany } from "@/lib/ratelimit";
-import { clearCookie, currentUser, googleClientId, sessionCookie, verifyGoogle } from "@/lib/auth";
+// Google sign-in is switched off: people sign in with their phone number only.
+// import { clearCookie, currentUser, googleClientId, sessionCookie, verifyGoogle } from "@/lib/auth";
+import { clearCookie, currentUser, sessionCookie } from "@/lib/auth";
 
 // GET: what the sign-in screen needs, and who is signed in (if anyone).
 export async function GET(request: Request) {
   const user = currentUser(request);
   return Response.json({
-    clientId: googleClientId(),
+    clientId: "", // Google sign-in is switched off. Was: googleClientId()
     sms: Boolean(smsProvider()), // whether codes really go out by SMS
     user: user ? { id: user.id, name: user.name, email: user.email, phone: user.phone, picture: user.picture } : null,
   });
 }
 
-// POST: sign in. Normally with a Google token. A second path, guarded by a server-side secret,
-// exists only so automated tests can sign in without a browser.
+// POST: sign in with a phone number and a one-time code. Google sign-in is commented out below.
+// A second path, guarded by a server-side secret, exists only so automated tests can sign in without a browser.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   let profile: { email: string; name: string; picture?: string };
@@ -53,18 +55,20 @@ export async function POST(request: Request) {
     return signedIn(upsertPhoneUser(phone, name || undefined));
   }
 
-  if (typeof body?.credential === "string") {
-    if (!googleClientId()) return Response.json({ error: "Google sign-in is not set up on this server yet." }, { status: 503 });
-    try {
-      profile = await verifyGoogle(body.credential);
-    } catch (e) {
-      return Response.json({ error: e instanceof Error ? e.message : "Sign-in failed." }, { status: 401 });
-    }
-  } else if (process.env.TEST_LOGIN_SECRET && body?.secret === process.env.TEST_LOGIN_SECRET && typeof body?.email === "string") {
+  // Google sign-in is switched off: phone number only.
+  // if (typeof body?.credential === "string") {
+  //   if (!googleClientId()) return Response.json({ error: "Google sign-in is not set up on this server yet." }, { status: 503 });
+  //   try {
+  //     profile = await verifyGoogle(body.credential);
+  //   } catch (e) {
+  //     return Response.json({ error: e instanceof Error ? e.message : "Sign-in failed." }, { status: 401 });
+  //   }
+  // } else
+  if (process.env.TEST_LOGIN_SECRET && body?.secret === process.env.TEST_LOGIN_SECRET && typeof body?.email === "string") {
     profile = { email: body.email, name: String(body.name ?? "Tester") };
     test = true;
   } else {
-    return Response.json({ error: "Sign in with Google." }, { status: 400 });
+    return Response.json({ error: "Sign in with your phone number." }, { status: 400 });
   }
 
   let user: User;
