@@ -1,25 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
-type GoogleId = {
-  initialize: (o: { client_id: string; callback: (r: { credential: string }) => void }) => void;
-  renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
-};
-declare global {
-  interface Window {
-    google?: { accounts: { id: GoogleId } };
-  }
-}
+// Google sign-in is switched off: people sign in with their phone number only.
+// type GoogleId = {
+//   initialize: (o: { client_id: string; callback: (r: { credential: string }) => void }) => void;
+//   renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
+// };
+// declare global {
+//   interface Window {
+//     google?: { accounts: { id: GoogleId } };
+//   }
+// }
 
 const post = (body: unknown) => fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /**
  * The first screen. People sign in with their phone number and a one-time code, the way they
- * expect a messenger to work. Google sign-in stays as a second way in.
+ * expect a messenger to work. Google sign-in is switched off (commented out below).
  */
-export default function SignIn({ clientId, onDone }: { clientId: string; onDone: () => void }) {
-  const slot = useRef<HTMLDivElement>(null);
+export default function SignIn({ onDone }: { clientId: string; onDone: () => void }) {
+  // const slot = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
@@ -29,28 +30,28 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
   const [why, setWhy] = useState<string | null>(null); // why the code could not be texted, if it was tried
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!clientId) return;
-    const start = () => {
-      if (!window.google || !slot.current) return;
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async ({ credential }) => {
-          const res = await post({ credential });
-          if (res.ok) onDone();
-          else setError((await res.json()).error ?? "Sign-in failed.");
-        },
-      });
-      window.google.accounts.id.renderButton(slot.current, { theme: "filled_black", size: "large", shape: "pill", text: "continue_with", width: 280 });
-    };
-    if (window.google) return start();
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = start;
-    script.onerror = () => setError("Could not load Google sign-in. Check your connection.");
-    document.head.appendChild(script);
-  }, [clientId, onDone]);
+  // useEffect(() => {
+  //   if (!clientId) return;
+  //   const start = () => {
+  //     if (!window.google || !slot.current) return;
+  //     window.google.accounts.id.initialize({
+  //       client_id: clientId,
+  //       callback: async ({ credential }) => {
+  //         const res = await post({ credential });
+  //         if (res.ok) onDone();
+  //         else setError((await res.json()).error ?? "Sign-in failed.");
+  //       },
+  //     });
+  //     window.google.accounts.id.renderButton(slot.current, { theme: "filled_black", size: "large", shape: "pill", text: "continue_with", width: 280 });
+  //   };
+  //   if (window.google) return start();
+  //   const script = document.createElement("script");
+  //   script.src = "https://accounts.google.com/gsi/client";
+  //   script.async = true;
+  //   script.onload = start;
+  //   script.onerror = () => setError("Could not load Google sign-in. Check your connection.");
+  //   document.head.appendChild(script);
+  // }, [clientId, onDone]);
 
   async function askForCode() {
     if (busy) return;
@@ -98,12 +99,12 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
             <span key={i} className="h-2.5 w-2.5 rounded-full bg-equal-lime" />
           ))}
         </span>
-        <span className="text-3xl font-semibold tracking-tight">Equal</span>
+        <span className="text-3xl font-semibold tracking-tight">My Equal</span>
       </span>
 
       <div className="max-w-xl">
-        <h1 className="hero-text font-display text-4xl leading-tight sm:text-6xl">A messenger that remembers for you.</h1>
-        <p className="mt-4 text-lg text-white/75">It keeps track of what matters in your chats, reminds you in time, and looks out for you and your family.</p>
+        <h1 className="hero-text font-display text-4xl leading-tight sm:text-6xl">Stay close to the people who matter.</h1>
+        <p className="mt-4 text-lg text-white/75">Life gets busy. My Equal remembers, reminds and reaches out, so no one you care about feels forgotten.</p>
       </div>
 
       <div className="glass w-full max-w-sm rounded-3xl p-5 text-left">
@@ -162,12 +163,14 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
         {error && <div className="mt-3 rounded-xl bg-rose-600 px-3 py-2 text-sm">{error}</div>}
       </div>
 
+      {/* Google sign-in is switched off: phone number only.
       {clientId && (
         <div className="flex flex-col items-center gap-3">
           <span className="text-xs uppercase tracking-[0.2em] text-white/40">or</span>
           <div ref={slot} className="min-h-[44px]" />
         </div>
       )}
+      */}
 
       <p className="max-w-md text-xs leading-relaxed text-white/50">
         Built at Builders 2026. Equal reads your messages with an AI model (OpenAI) so it can help you. Only you see what it notices. Please don&apos;t share anything sensitive here.
