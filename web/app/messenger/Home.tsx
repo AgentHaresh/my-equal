@@ -1,6 +1,7 @@
 // The Equal home: the greeting, the box to ask or tell Equal something, what not to forget,
 // what needs me right now, what Equal knows about each person, and bringing chats in and out.
 
+import { useState } from "react";
 import type { Snapshot } from "@/lib/snapshot";
 import type { Answer } from "@/lib/ask";
 import { RELATIONS } from "@/lib/relations";
@@ -239,20 +240,7 @@ export default function Home(props: Props) {
               {!person.unknown && (
                 <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                   <span className="text-white/75">{person.name} is your</span>
-                  <select
-                    value={(RELATIONS as readonly string[]).includes(person.relation) ? person.relation : ""}
-                    onChange={(e) => describe(person.id, { relation: e.target.value })}
-                    className="rounded-full border border-white/30 bg-equal-card px-2 py-1 text-sm text-white outline-none"
-                  >
-                    <option value="" disabled>
-                      {person.relation}
-                    </option>
-                    {RELATIONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
+                  <RelationBlank key={`${person.id}:${person.relation}`} value={person.relation} onSave={(relation) => describe(person.id, { relation })} />
                   <label className="flex items-center gap-1 text-white/75">
                     <input type="checkbox" checked={person.close} onChange={(e) => describe(person.id, { close: e.target.checked })} className="accent-[#cef82c]" />
                     keep close
@@ -365,5 +353,45 @@ export default function Home(props: Props) {
       </section>
      </div>
     </aside>
+  );
+}
+
+/**
+ * "<name> is your ____": who someone is to the user, in their own words. Common answers are
+ * offered as suggestions while typing; anything else ("college roommate", "cousin in Pune") is fine.
+ * Saved when the box loses focus or Enter is pressed.
+ */
+function RelationBlank({ value, onSave }: { value: string; onSave: (relation: string) => void }) {
+  const [text, setText] = useState(value);
+  const commit = () => {
+    const next = text.replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!next) return setText(value);
+    if (next !== value) onSave(next);
+  };
+  return (
+    <>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        list="relation-suggestions"
+        maxLength={40}
+        placeholder="e.g. college roommate"
+        aria-label="Who they are to you"
+        size={Math.max(10, text.length + 1)}
+        className="min-w-0 max-w-full border-0 border-b-2 border-dashed border-white/40 bg-transparent px-1 py-0.5 text-sm font-semibold text-white outline-none focus:border-equal-lime"
+      />
+      <datalist id="relation-suggestions">
+        {RELATIONS.map((r) => (
+          <option key={r} value={r} />
+        ))}
+      </datalist>
+    </>
   );
 }

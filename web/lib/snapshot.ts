@@ -19,7 +19,7 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
   const replied = new Set(db.messages.filter((m) => m.from === "them").map((m) => m.contactId));
   const mine = (contactId: string) => !db.contacts.find((c) => c.id === contactId)?.owner;
   return {
-    me: user ? ({ id: user.id, name: user.name, email: user.email, phone: user.phone, picture: user.picture, about: user.about, needsSetup: !user.profileSetAt && !user.test } as Person & { email: string; phone?: string; about?: string; needsSetup: boolean }) : null,
+    me: user ? ({ id: user.id, name: user.name, email: user.email, phone: user.phone, username: user.username, picture: user.picture, about: user.about, needsSetup: (!user.profileSetAt || !user.username) && !user.test, profileReady: Boolean(user.profileSetAt) } as Person & { email: string; phone?: string; username?: string; about?: string; needsSetup: boolean; profileReady: boolean }) : null,
     // Threads on a protected family member's phone are theirs, not the user's.
     contacts: db.contacts.filter((c) => !c.owner),
     messages: db.messages.filter((m) => mine(m.contactId)),

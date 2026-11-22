@@ -1,6 +1,7 @@
 import { DB, parseWhen, save, todayIST, uid } from "./store";
 import { notesContact } from "./photo";
 import { askJson, butlerStatus, wordsOf } from "./butler";
+import { createJob } from "./calls";
 
 /** The most memories shown to the model for one question. */
 const MEMORY_LIMIT = 80;
@@ -14,17 +15,20 @@ const MEMORY_LIMIT = 80;
 const SYSTEM = `You are the user's personal assistant. Answer the QUESTION using ONLY the MEMORIES, PEOPLE and MESSAGES provided. They are the user's own chats.
 "me" in messages is the user. TODAY is today's date in India.
 
-Return ONLY JSON: {"known": boolean, "answer": string, "source_ids": [number], "remember": null | {"person": string|null, "fact": string, "when": string|null}}
+Return ONLY JSON: {"known": boolean, "answer": string, "source_ids": [number], "remember": null | {"person": string|null, "fact": string, "when": string|null}, "errand": null | {"need": string, "category": "mechanic"|"doctor"|"pharmacy"|"plumber"|"electrician"|"travel"|"other"}}
 - If the material answers the question, "known" is true and "answer" is one or two plain sentences, addressed to the user as "you".
 - If it does not, "known" is false and "answer" says briefly that you don't have that yet. Never guess, and never use outside knowledge about the people.
 - "source_ids" lists the ids of the MESSAGES (at most 3) that the answer rests on. Use [] if it rests only on MEMORIES.
 - Give dates in words (for example "Thursday, 19 November"). Reply in the language of the question.
 - If the user asks what you know or remember about a person, list everything in MEMORIES and PEOPLE about that person: who they are to the user, and each fact, briefly. "known" is true if there is anything at all.
-- Sometimes the QUESTION is not a question: the user is TELLING you something to keep ("Remember that Abhishek is allergic to peanuts", "Note: Priya's birthday is 5 January", "Abhishek moved to Pune"). Then fill "remember": "person" is the exact name from PEOPLE the fact is about, or null if it is about the user or about nobody in PEOPLE; "fact" is one short plain sentence in English; "when" is YYYY-MM-DD or YYYY-MM-DDTHH:MM if the fact has a date, else null. Set "known" true and make "answer" a short confirmation of what you noted. For a real question, "remember" is null. Never fill "remember" from MESSAGES or MEMORIES, only from what the user typed.`;
+- Sometimes the QUESTION is not a question: the user is TELLING you something to keep ("Remember that Abhishek is allergic to peanuts", "Note: Priya's birthday is 5 January", "Abhishek moved to Pune"). Then fill "remember": "person" is the exact name from PEOPLE the fact is about, or null if it is about the user or about nobody in PEOPLE; "fact" is one short plain sentence in English; "when" is YYYY-MM-DD or YYYY-MM-DDTHH:MM if the fact has a date, else null. Set "known" true and make "answer" a short confirmation of what you noted. For a real question, "remember" is null. Never fill "remember" from MESSAGES or MEMORIES, only from what the user typed.
+- Sometimes the user asks you to DO a practical errand that needs calling local service providers: find, compare or book a mechanic, a doctor or clinic, a pharmacy, a plumber, an electrician, or travel ("my car broke down, find me a mechanic", "I need a doctor for a check-up this week", "get me a plumber"). A plain statement of such a need, typed to you, counts as asking. Then fill "errand": "need" is one short English sentence of what is needed, with any place and timing the user gave; "category" is the closest one. Set "known" true and make "answer" one short sentence saying you will call a few providers, compare their answers, and book nothing until the user approves. For anything else, "errand" is null.`;
 
 const STOP = new Set("the a an is are was were did do does what when where who whom how why my me i you your to of for and in on at with about has have had will would should can could tell say said any".split(" "));
 
-export type Answer = { known: boolean; answer: string; sources: { who: string; from: string; text: string; at: string }[]; error?: string; remembered?: { about: string; fact: string } };
+export type Answer = { known: boolean; answer: string; sources: { who: string; from: string; text: string; at: string }[]; error?: string; remembered?: { about: string; fact: string }; errand?: { jobId: string; need: string } };
+
+const CATEGORIES = ["mechanic", "doctor", "pharmacy", "plumber", "electrician", "travel", "other"];
 
 export async function askEqual(db: DB, question: string): Promise<Answer> {
   if (butlerStatus() !== "online") return { known: false, answer: "", sources: [], error: butlerStatus() };
@@ -59,7 +63,7 @@ export async function askEqual(db: DB, question: string): Promise<Answer> {
     .slice(0, MEMORY_LIMIT)
     .sort((a, b) => a.i - b.i);
 
-  let r: { known?: boolean; answer?: string; source_ids?: number[]; remember?: { person?: string | null; fact?: string; when?: string | null } | null };
+  let r: { known?: boolean; answer?: string; source_ids?: number[]; remember?: { person?: string | null; fact?: string; when?: string | null } | null; errand?: { need?: string; category?: string } | null };
   try {
     r = await askJson(SYSTEM, {
       TODAY: todayIST(),
@@ -90,5 +94,22 @@ export async function askEqual(db: DB, question: string): Promise<Answer> {
     }
     remembered = { about: person?.name ?? "you", fact };
   }
-  return { known: Boolean(r.known) || Boolean(remembered), answer: r.answer ?? "", sources, remembered };
+  // The user asked Equal directly to run an errand: that request is the yes, so the call-around
+  // starts now. Booking still waits for the user to choose a provider.
+  let errand: Answer["errand"];
+  const need = typeof r.errand?.need === "string" ? r.errand.need.trim().slice(0, 200) : "";
+  if (need) {
+    const category = CATEGORIES.includes(String(r.errand?.category)) ? String(r.errand?.category) : "other";
+    const busy = db.jobs.find((j) => j.category === category && j.status === "calling");
+    if (busy) {
+      errand = { jobId: busy.id, need: busy.need };
+    } else {
+      const s = { id: uid(), type: "intent" as const, contactId: notesContact(db).id, title: `Help with: ${need}`, detail: need, category, need, status: "accepted" as const, createdAt: new Date().toISOString() };
+      db.suggestions.push(s);
+      const job = await createJob(db, s);
+      save();
+      errand = { jobId: job.id, need };
+    }
+  }
+  return { known: Boolean(r.known) || Boolean(remembered) || Boolean(errand), answer: r.answer ?? "", sources: errand ? [] : sources, remembered, errand };
 }

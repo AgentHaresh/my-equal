@@ -3,7 +3,7 @@ import { snapshot } from "@/lib/snapshot";
 import { MAX_PHOTO_BYTES, setProfile } from "@/lib/profile";
 import { allow, tooMany } from "@/lib/ratelimit";
 
-// POST (form: name, about?, photo?, removePhoto?): set up or change my profile.
+// POST (form: name, username, about?, photo?, removePhoto?): set up or change my profile.
 // Asked once when an account is new, and reachable later from Settings.
 export async function POST(request: Request) {
   const ctx = context(request);
@@ -18,6 +18,7 @@ export async function POST(request: Request) {
 
   const error = setProfile(ctx.user, {
     name: String(form.get("name") ?? ""),
+    username: String(form.get("username") ?? ""),
     about: String(form.get("about") ?? ""),
     photo: photo instanceof Blob && photo.size > 0 ? Buffer.from(await photo.arrayBuffer()) : undefined,
     removePhoto: form.get("removePhoto") === "yes",

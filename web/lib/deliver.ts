@@ -1,5 +1,6 @@
 import { DB, Contact, Message, User, contactFor, findUser, save, spaceOf, uid } from "./store";
 import { analyse, askJson, butlerStatus } from "./butler";
+import { checkScam } from "./scam";
 import { dueForLearning, learnRelation } from "./people";
 import { notify } from "./push";
 import { count } from "./metrics";
@@ -31,7 +32,21 @@ export async function deliver(db: DB, user: User, contact: Contact, text: string
     // If their app is not open right now, reach them with a notification.
     if (!other.seenAt || Date.now() - Date.parse(other.seenAt) > 4000)
       notify(other.id, { title: user.name, body: voice ? "Voice note" : text ? text.slice(0, 140) : file ? `Sent ${file.name}` : "New message", tag: `chat-${me.id}`, url: `/?c=${encodeURIComponent(me.id)}` });
-    if (text) void analyse(theirs, me, copy).then(() => save()); // does not hold up the sender
+    // Someone they have never written to, and have not said who they are: check for a scam first.
+    // A scam is flagged in their chat and they are alerted; its claims are not kept as memories.
+    const stranger = me.relationSource !== "user" && !theirs.messages.some((m) => m.contactId === me.id && m.from === "me");
+    if (text && stranger) {
+      void checkScam(theirs, me, copy)
+        .then(() => {
+          if (copy.scam) {
+            count("scam.flagged");
+            notify(other.id, { title: `Equal: ${user.name}'s message looks like a scam`, body: `${copy.scam.reason} ${copy.scam.advice}`.slice(0, 200), tag: `scam-${me.id}`, url: `/?c=${encodeURIComponent(me.id)}` });
+            return;
+          }
+          return analyse(theirs, me, copy).then(() => undefined);
+        })
+        .then(() => save());
+    } else if (text) void analyse(theirs, me, copy).then(() => save()); // does not hold up the sender
     if (dueForLearning(theirs, me)) void learnRelation(theirs, me).then(() => save());
     if (dueForLearning(db, contact)) void learnRelation(db, contact).then(() => save());
   }

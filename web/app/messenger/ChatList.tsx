@@ -1,5 +1,5 @@
 // The left-hand column: the way to the Equal home, search and the starred filter,
-// starting a chat by number or email, the invitation note, and the list of chats.
+// starting a chat by phone number or username, the invitation note, and the list of chats.
 
 import type { Snapshot } from "@/lib/snapshot";
 import { SparkIcon, StarIcon, TickIcon } from "../Icons";
@@ -83,15 +83,16 @@ export default function ChatList(props: Props) {
       >
         <input
           type="text"
-          inputMode="email"
           autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           value={newNumber}
           onChange={(e) => setNewNumber(e.target.value)}
-          placeholder="New chat: number or email"
-          aria-label="Start a chat by phone number or email"
+          placeholder="New chat: phone number or @username"
+          aria-label="Start a chat by phone number or username"
           className="min-w-0 flex-1 rounded-full border border-white/15 bg-white/5 px-3.5 py-2 text-sm outline-none placeholder:text-white/45 focus:border-equal-lime"
         />
-        <button disabled={!(newNumber.includes("@") ? /\S+@\S+\.\S+/.test(newNumber) : newNumber.replace(/\D/g, "").length >= 10)} aria-label="Start chat" className="shrink-0 rounded-full bg-equal-lime px-3.5 py-2 text-sm font-bold text-equal-ink disabled:opacity-30">
+        <button disabled={!(/[a-z]/i.test(newNumber) ? newNumber.trim().replace(/^@+/, "").length >= 3 : newNumber.replace(/\D/g, "").length >= 10)} aria-label="Start chat" className="shrink-0 rounded-full bg-equal-lime px-3.5 py-2 text-sm font-bold text-equal-ink disabled:opacity-30">
           +
         </button>
       </form>
@@ -152,7 +153,7 @@ export default function ChatList(props: Props) {
               <ol className="mt-4 space-y-2.5 text-sm text-white/90">
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-equal-lime text-xs font-bold text-equal-ink">1</span>
-                  <span>Start a chat with someone&apos;s phone number or email, in the box above. If they are not here yet, send them the invite.</span>
+                  <span>Start a chat with someone&apos;s phone number or @username, in the box above. If they are not here yet, send them the invite.</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-equal-lime text-xs font-bold text-equal-ink">2</span>

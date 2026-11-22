@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { DB, User, root, save } from "./store";
+import { DB, User, findUserByUsername, normaliseUsername, root, save, usernameProblem } from "./store";
 import { dataDir, openBytes, sealBytes } from "./storage";
 
 /**
@@ -24,7 +24,7 @@ export function pictureType(bytes: Buffer): "image/jpeg" | "image/png" | "image/
   return null;
 }
 
-export type ProfileChange = { name: string; about?: string; photo?: Buffer; removePhoto?: boolean };
+export type ProfileChange = { name: string; username?: string; about?: string; photo?: Buffer; removePhoto?: boolean };
 
 /** Set the profile. Returns an error to show, or null when it is saved. */
 export function setProfile(user: User, change: ProfileChange): string | null {
@@ -33,6 +33,15 @@ export function setProfile(user: User, change: ProfileChange): string | null {
   if (name.length > MAX_NAME) return `Keep your name under ${MAX_NAME} characters.`;
   const about = (change.about ?? "").replace(/\s+/g, " ").trim();
   if (about.length > MAX_ABOUT) return `Keep the line about you under ${MAX_ABOUT} characters.`;
+  // A username is how others find you without your number. Everyone sets one; the tests' accounts may skip it.
+  const username = normaliseUsername(change.username ?? "");
+  if (username || !user.test) {
+    if (!username) return "Choose a username.";
+    const problem = usernameProblem(username);
+    if (problem) return problem;
+    const holder = findUserByUsername(username);
+    if (holder && holder.id !== user.id) return "That username is taken. Try another.";
+  }
 
   if (change.photo) {
     if (change.photo.length > MAX_PHOTO_BYTES) return "That photo is too large.";
@@ -46,6 +55,7 @@ export function setProfile(user: User, change: ProfileChange): string | null {
     user.picture = undefined;
   }
   user.name = name;
+  if (username) user.username = username;
   user.about = about || undefined;
   user.profileSetAt = new Date().toISOString();
 

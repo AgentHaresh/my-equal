@@ -1,5 +1,4 @@
 import { save } from "@/lib/store";
-import { RELATIONS } from "@/lib/people";
 import { context, unauthorised } from "@/lib/auth";
 import { snapshot } from "@/lib/snapshot";
 
@@ -13,8 +12,11 @@ export async function POST(request: Request) {
   if (!contact) return Response.json({ error: "No such contact." }, { status: 400 });
   // Starring a person keeps them at hand in Starred. It says nothing about the relationship.
   if (typeof body?.starred === "boolean") contact.starred = body.starred || undefined;
-  if (typeof body?.relation === "string" && (RELATIONS as readonly string[]).includes(body.relation)) {
-    contact.relation = body.relation;
+  // Who they are to me, in my own words ("college roommate", "cousin in Pune"). Free text, kept short.
+  if (typeof body?.relation === "string") {
+    const relation = body.relation.replace(/[\u0000-\u001f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!relation) return Response.json({ error: "Say who they are to you." }, { status: 400 });
+    contact.relation = relation;
     contact.relationSource = "user";
   }
   if (typeof body?.close === "boolean") {

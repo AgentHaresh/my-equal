@@ -249,7 +249,9 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
   }
   const i = a.intent;
   if (i && msg.from === "me") {
-    const spoke = Boolean(i.speak) && Number(i.urgency) >= 3;
+    // The model's own judgement decides; urgency only screens out plain venting (1). A planned
+    // errand ("I need a check-up this week", urgency 2) is still worth an offer.
+    const spoke = Boolean(i.speak) && Number(i.urgency) >= 2;
     db.gateLog.push({ messageId: msg.id, spoke, reason: i.reason ?? "", at: now });
     const already = db.suggestions.some(
       (s) => s.type === "intent" && s.status === "new" && s.category === i.category

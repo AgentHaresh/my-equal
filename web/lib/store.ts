@@ -120,6 +120,7 @@ export type User = {
   picture?: string;
   createdAt: string;
   phone?: string; // set for people who signed in with their phone number, in international form
+  username?: string; // unique handle others can find them by (lowercase, without the @)
   about?: string; // an optional line about themselves, shown with their profile
   profileSetAt?: string; // when they set up their profile; until then the app asks them to
   test?: boolean; // created by the automated tests; never shown to real people
@@ -294,6 +295,28 @@ export function findUserByEmail(email: string): User | undefined {
 
 export function findUserByPhone(phone: string): User | undefined {
   return root().users.find((u) => u.phone === phone);
+}
+
+export function findUserByUsername(username: string): User | undefined {
+  const u = normaliseUsername(username);
+  return u ? root().users.find((x) => x.username === u) : undefined;
+}
+
+/** A username as stored: lowercase, without a leading @. Not checked; see usernameProblem. */
+export function normaliseUsername(raw: string): string {
+  return raw.trim().replace(/^@+/, "").toLowerCase();
+}
+
+const RESERVED = new Set(["equal", "myequal", "admin", "support", "help", "official", "system", "root", "me", "you", "notes"]);
+
+/** Why a username cannot be used, or null if it can. Taken names are checked separately. */
+export function usernameProblem(username: string): string | null {
+  if (username.length < 3 || username.length > 20) return "A username is 3 to 20 characters.";
+  if (!/^[a-z0-9._]+$/.test(username)) return "Use only letters, numbers, dots and underscores.";
+  if (!/^[a-z]/.test(username)) return "Start your username with a letter.";
+  if (/[._]$/.test(username) || /[._]{2}/.test(username)) return "A dot or underscore cannot end the name or come twice in a row.";
+  if (RESERVED.has(username)) return "That username is reserved.";
+  return null;
 }
 
 /** Find, or create, the contact in `space` that stands for the real person `other`. */

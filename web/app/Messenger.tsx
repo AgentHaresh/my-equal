@@ -453,13 +453,14 @@ export default function Messenger({ role }: Props) {
   /** Start a chat with someone by their phone number, if they are on My Equal. */
   async function startByNumber() {
     setNumberNote(null);
-    const byEmail = newNumber.includes("@");
-    const res = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(byEmail ? { email: newNumber } : { phone: newNumber }) });
+    // Letters mean a username (with or without the @); otherwise it is a phone number.
+    const byUsername = /[a-z]/i.test(newNumber);
+    const res = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(byUsername ? { username: newNumber } : { phone: newNumber }) });
     const next = await res.json();
     setInviteSms(null);
-    // An invitation can be texted to a number; for an email, the link is copied instead.
-    setInviteFor(res.status === 404 ? (byEmail ? "" : newNumber) : null);
-    if (!res.ok) return setNumberNote(res.status === 404 ? `${byEmail ? "That email" : "That number"} is not on Equal yet. Invite them?` : (next.error ?? "Could not start that chat."));
+    // An invitation can be texted to a number; a username that is not found gets no invite.
+    setInviteFor(res.status === 404 && !byUsername ? newNumber : null);
+    if (!res.ok) return setNumberNote(res.status === 404 && !byUsername ? "That number is not on Equal yet. Invite them?" : (next.error ?? "Could not start that chat."));
     setSnap(next);
     setNewNumber("");
     if (next.contactId) open(next.contactId);
@@ -550,7 +551,7 @@ export default function Messenger({ role }: Props) {
       const answer = await res.json();
       setReply({ ...answer, question: q });
       setQuestion("");
-      if (answer.remembered) void refresh();
+      if (answer.remembered || answer.errand) void refresh();
     } finally {
       setAsking(false);
     }
