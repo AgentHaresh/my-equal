@@ -27,6 +27,8 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
     suggestions: [...db.suggestions.filter((s) => s.status !== "dismissed"), ...computeNudges(db)],
     gateLog: db.gateLog.slice(-20),
     jobs: db.jobs,
+    // Calls and meetings with each person, for their history. Texts are in messages.
+    touches: (db.touches ?? []).filter((t) => mine(t.contactId)),
     // A voice call this person is in, or being rung for.
     // When each real person in my chats was last here, so the chat can say "online" or "last seen".
     presence: Object.fromEntries(db.contacts.filter((c) => c.userId && replied.has(c.id)).map((c) => [c.id, presenceOf(root().users.find((u) => u.id === c.userId)?.seenAt)])) as Record<string, string | null>,
@@ -42,7 +44,7 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
 }
 export type Snapshot = ReturnType<typeof snapshot>;
 
-const bare = { me: null, presence: {}, demo: false, call: null, reminderCall: null, scheduled: [], memories: [], suggestions: [], gateLog: [], jobs: [], butler: "online", error: null };
+const bare = { me: null, presence: {}, touches: [], demo: false, call: null, reminderCall: null, scheduled: [], memories: [], suggestions: [], gateLog: [], jobs: [], butler: "online", error: null };
 
 /** The other side of a sample chat sees only that one conversation: no notes from Equal, memories, offers or jobs. */
 export function friendSnapshot(db: DB, contactId: string): Snapshot {
@@ -51,7 +53,7 @@ export function friendSnapshot(db: DB, contactId: string): Snapshot {
     ...bare,
     contacts: contact ? [contact] : [],
     // The sender never learns whether their message was flagged.
-    messages: contact ? db.messages.filter((m) => m.contactId === contactId && m.from !== "butler").map((m) => ({ ...m, scam: undefined, starred: undefined })) : [],
+    messages: contact ? db.messages.filter((m) => m.contactId === contactId && m.from !== "butler").map((m) => ({ ...m, scam: undefined, starred: undefined, tone: undefined })) : [],
   };
 }
 

@@ -1,4 +1,5 @@
-import { Root, User, contactFor, findUser, root, save, spaceOf, uid } from "./store";
+import { Root, User, contactFor, findUser, recordTouch, root, save, spaceOf, uid } from "./store";
+import type { Touch } from "./touch";
 import { notify } from "./push";
 
 /**
@@ -31,12 +32,13 @@ function calls(): RtcCall[] {
   return (r.rtc ??= []);
 }
 
-function note(owner: User, other: User, text: string, touched: boolean) {
+function note(owner: User, other: User, text: string, touch?: Pick<Touch, "kind" | "dir" | "mins">) {
   const space = spaceOf(owner.id);
   const contact = contactFor(space, other);
   const at = new Date().toISOString();
   space.messages.push({ id: uid(), contactId: contact.id, from: "butler", text, at });
-  if (touched) contact.lastContactAt = at;
+  // Each side keeps the call in its history of who reached out to whom.
+  if (touch) recordTouch(space, { contactId: contact.id, at, ...touch });
 }
 
 function finish(call: RtcCall, outcome: NonNullable<RtcCall["outcome"]>) {
@@ -52,13 +54,14 @@ function finish(call: RtcCall, outcome: NonNullable<RtcCall["outcome"]>) {
     if (outcome === "completed") {
       const mins = Math.max(1, Math.round((Date.parse(call.endedAt) - Date.parse(call.answeredAt ?? call.endedAt)) / 60000));
       const kind = call.video ? "video call" : "call";
-      note(caller, callee, `You had a ${kind} with ${callee.name}. About ${mins} min.`, true);
-      note(callee, caller, `${caller.name} had a ${kind} with you. About ${mins} min.`, true);
+      const k = call.video ? "video" : "call";
+      note(caller, callee, `You had a ${kind} with ${callee.name}. About ${mins} min.`, { kind: k, dir: "out", mins });
+      note(callee, caller, `${caller.name} had a ${kind} with you. About ${mins} min.`, { kind: k, dir: "in", mins });
     } else if (outcome === "missed") {
-      note(caller, callee, `${callee.name} didn't pick up.`, false);
-      note(callee, caller, `Missed ${call.video ? "video call" : "call"} from ${caller.name}.`, false);
+      note(caller, callee, `${callee.name} didn't pick up.`, { kind: "missed", dir: "out" });
+      note(callee, caller, `Missed ${call.video ? "video call" : "call"} from ${caller.name}.`, { kind: "missed", dir: "in" });
     } else if (outcome === "declined") {
-      note(caller, callee, `${callee.name} couldn't take your call.`, false);
+      note(caller, callee, `${callee.name} couldn't take your call.`, { kind: "missed", dir: "out" });
     }
   }
   const all = calls();

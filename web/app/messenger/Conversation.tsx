@@ -248,6 +248,12 @@ export default function Conversation(props: Props) {
                   <div className="mt-2 rounded-xl bg-white/15 px-3 py-1.5 text-sm font-semibold">{m.scam.advice}</div>
                 </div>
               )}
+              {/* How their message sounded, as Equal read it. Only the user sees this, never the sender. */}
+              {isMe && !mine && m.tone && (
+                <div className="mt-0.5 max-w-[80%] text-[11px] italic text-equal-ink/60">
+                  Equal: sounds {m.tone.mood}. {m.tone.note}
+                </div>
+              )}
               {isMe && quiet.has(m.id) && <div className="mt-0.5 max-w-[80%] text-[11px] italic text-equal-ink/50">Equal stayed quiet: {quiet.get(m.id)}</div>}
             </div>
           );

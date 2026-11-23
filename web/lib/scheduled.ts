@@ -1,4 +1,4 @@
-import { DB, findUser, root, save, uid } from "./store";
+import { DB, computeNudges, findUser, root, save, uid } from "./store";
 import { deliver } from "./deliver";
 import { notify } from "./push";
 import { errorText, log } from "./log";
@@ -79,6 +79,29 @@ export function notifyDueReminders(now = Date.now()) {
   if (changed) save();
 }
 
+/**
+ * "Time to talk to Amma": when someone I care about is due (their rhythm has come round, they
+ * sounded low, or they are waiting for my reply), a notification goes out once, in the daytime.
+ */
+export function notifyDuePeople(now = Date.now()) {
+  const hour = new Date(now + 5.5 * 3600000).getUTCHours();
+  if (hour < 9 || hour >= 21) return; // never at night, Indian time
+  let changed = false;
+  for (const [userId, db] of Object.entries(root().spaces)) {
+    for (const s of computeNudges(db, now)) {
+      if (s.type !== "keep_close" && s.type !== "tone" && s.type !== "reply") continue;
+      const c = db.contacts.find((x) => x.id === s.contactId);
+      if (!c || c.nudgedFor === s.id || c.sample) continue;
+      c.nudgedFor = s.id;
+      changed = true;
+      notify(userId, { title: s.title, body: s.detail, tag: `people-${c.id}`, url: "/" });
+    }
+  }
+  if (changed) save();
+}
+
+let lastPeopleCheck = 0;
+
 const holder = globalThis as unknown as { __equalScheduler?: ReturnType<typeof setInterval> };
 
 /** Start the timer once per server process. */
@@ -88,6 +111,11 @@ export function startScheduler() {
     try {
       sendDue();
       notifyDueReminders();
+      // Who is due a call changes slowly: once a minute is plenty.
+      if (Date.now() - lastPeopleCheck > 60000) {
+        lastPeopleCheck = Date.now();
+        notifyDuePeople();
+      }
     } catch (e) {
       log.error("scheduler.tick_failed", { error: errorText(e) }); // tried again on the next tick
     }

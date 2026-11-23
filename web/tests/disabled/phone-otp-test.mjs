@@ -1,7 +1,8 @@
+// DISABLED while sign-in is Google only. Move back to tests/phone-test.mjs when phone sign-in returns.
 // Test of sign-in by phone number and one-time code, and starting a chat by number.
 // Usage: node tests/phone-test.mjs <base-url>
 // The real code path makes real (non-test) accounts, so it is only exercised against a local server.
-import { anon, checker } from "./helper.mjs";
+import { anon, checker } from "../helper.mjs";
 
 const B = process.argv[2] ?? "http://localhost:3217";
 const SECRET = process.env.TEST_LOGIN_SECRET ?? "localtest";

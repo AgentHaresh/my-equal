@@ -27,11 +27,11 @@ It decides when to speak and when to stay quiet, and shows its reason when it st
 
 ### The messenger: what people expect
 
-Sign-in by phone number and one-time code. One-to-one chat with reply, edit, delete for everyone, reactions, forward, starred messages and people, search across chats, photos and files, voice notes, send later, read receipts, unread counts, "online" and last seen, voice and video calls, export of your chats, notifications, a light and a dark theme, and it installs as an app from the browser.
+Sign-in with Google (phone sign-in is built but switched off for now). One-to-one chat with reply, edit, delete for everyone, reactions, forward, starred messages and people, search across chats, photos and files, voice notes, send later, read receipts, unread counts, "online" and last seen, voice and video calls, export of your chats, notifications, a light and a dark theme, and it installs as an app from the browser.
 
 ## Try it
 
-1. Open the live link on a phone or computer and sign in with your phone number. A new account sets up its profile first: your name, and optionally a photo and a line about you.
+1. Open the live link on a phone or computer and continue with Google. A new account sets up its profile first: your name, and optionally a photo and a line about you.
 2. Start a chat: type a friend's number or email in **New chat**. There is no list of who is here; you reach someone only by an address you already know. If they are not here yet, send them the invite.
 3. Tell them something with a date in it ("demo at 2 tomorrow"). Open the home screen: it is under **Don't forget**.
 4. Tap a message and choose **Remind me**, then **Need AI help**.

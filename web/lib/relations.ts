@@ -14,3 +14,6 @@ export const RELATIONS = [
   "service provider",
   "acquaintance",
 ] as const;
+
+/** Relations that are family. When Equal works one of these out, the screen offers to add them to family; it never does so itself. */
+export const FAMILY_RELATIONS = new Set(["mother", "father", "brother", "sister", "partner", "family"]);

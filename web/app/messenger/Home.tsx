@@ -4,10 +4,11 @@
 import { useState } from "react";
 import type { Snapshot } from "@/lib/snapshot";
 import type { Answer } from "@/lib/ask";
-import { RELATIONS } from "@/lib/relations";
+import { FAMILY_RELATIONS, RELATIONS } from "@/lib/relations";
+import { RHYTHMS, ago, historyOf, inTouch, lastPhrase, rhythmStatus, type HistoryItem } from "@/lib/touch";
 import JobCard from "../JobCard";
 import { SparkIcon } from "../Icons";
-import { label, listTime, type Api, type Contact, type Pane, type Suggestion } from "./format";
+import { label, listTime, type Api, type Contact, type Pane, type PersonChange, type Suggestion } from "./format";
 import { Avatar } from "./parts";
 
 type Props = {
@@ -31,6 +32,7 @@ type Props = {
   others: Suggestion[];
   bookProvider: (jobId: string, callId: string) => Promise<void>;
   removeJob: (jobId: string) => Promise<void>;
+  tryDemo: () => void;
   draftFor: (s: Suggestion) => void;
   placeCall: (c: Contact, video?: boolean) => void;
   people: Contact[];
@@ -43,7 +45,7 @@ type Props = {
   personFact: string;
   setPersonFact: (text: string) => void;
   open: (id: string, focus?: string | null) => void;
-  describe: (contactId: string, change: { relation?: string; close?: boolean }) => void;
+  describe: (contactId: string, change: PersonChange) => void;
   addFact: (contactId: string) => void;
   forget: (id: string) => void;
   importing: boolean;
@@ -57,7 +59,7 @@ type Props = {
 };
 
 export default function Home(props: Props) {
-  const { pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, removeJob, draftFor, placeCall } = props;
+  const { pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, removeJob, tryDemo, draftFor, placeCall } = props;
   const { people, peopleShown, person, personMemories, personQuery, setPersonQuery, setPersonId, personFact, setPersonFact, open, describe, addFact, forget } = props;
   const { importing, importChat, importNote, importWho, contact, api, setSnap, setNotice } = props;
   return (
@@ -78,6 +80,16 @@ export default function Home(props: Props) {
         </p>
       </div>
       {snap.butler !== "online" && <p className="-mt-3 text-xs text-rose-200">{snap.butler}</p>}
+      {/* A brand-new account is empty. One tap fills it with clearly labelled made-up chats, so every feature can be tried. */}
+      {!snap.demo && !snap.contacts.some((c) => c.id !== "self") && (
+        <div className="rounded-2xl border border-equal-lime/40 bg-white/5 p-4">
+          <div className="font-semibold text-white">New here? See My Equal at work.</div>
+          <p className="mt-1 text-sm text-white/70">Add a few made-up chats (a friend, your sister, your father and a scam number) to try reminders, nudges, the call-around and the scam shield. Remove them any time from Settings.</p>
+          <button onClick={tryDemo} className="mt-3 rounded-full bg-equal-lime px-4 py-2 text-sm font-bold text-equal-ink">
+            Try it with sample chats
+          </button>
+        </div>
+      )}
 
       <section className="order-1 space-y-2">
         <form
@@ -173,7 +185,7 @@ export default function Home(props: Props) {
         {others.map((s) => (
           <div key={s.id} className={`rounded-2xl border p-3 ${s.type === "guardian" ? "border-rose-300 bg-rose-600" : "border-white/20 bg-white/10"} ${s.type === "guardian" || s.type === "intent" ? "order-first" : ""}`}>
             <div className={`${label} ${s.type === "guardian" ? "text-white" : "text-equal-lime"}`}>
-              {s.type === "guardian" ? "Family alert" : s.type === "intent" ? "Can help now" : s.type === "keep_close" ? "Stay close" : "Follow up"}
+              {s.type === "guardian" ? "Family alert" : s.type === "intent" ? "Can help now" : s.type === "keep_close" ? "Stay in touch" : s.type === "reply" ? "Waiting for you" : s.type === "tone" ? "Check in" : "Follow up"}
             </div>
             <div className="mt-1 text-sm font-semibold">{s.title}</div>
             <div className="text-sm text-white/85">{s.detail}</div>
@@ -181,12 +193,12 @@ export default function Home(props: Props) {
               <button onClick={() => answer(s, "accept")} className="rounded-full bg-equal-lime px-3.5 py-1 text-sm font-semibold text-equal-ink hover:brightness-95">
                 {s.type === "guardian" ? "I'll call them" : s.type === "intent" ? "Yes, please" : "Open chat"}
               </button>
-              {(s.type === "keep_close" || s.type === "follow_up") && (
+              {(s.type === "keep_close" || s.type === "follow_up" || s.type === "reply" || s.type === "tone") && (
                 <button onClick={() => draftFor(s)} className="rounded-full border border-equal-lime px-3 py-1 text-sm font-medium text-equal-lime hover:bg-white/10">
                   Draft a message
                 </button>
               )}
-              {s.type === "keep_close" &&
+              {(s.type === "keep_close" || s.type === "tone" || s.type === "reply") &&
                 snap.contacts
                   .filter((c) => c.id === s.contactId && c.userId)
                   .map((c) => (
@@ -194,6 +206,11 @@ export default function Home(props: Props) {
                       Call
                     </button>
                   ))}
+              {(s.type === "keep_close" || s.type === "tone") && (
+                <button onClick={() => describe(s.contactId, { logged: "call" })} title="You talked outside My Equal" className="rounded-full border border-white/30 px-3 py-1 text-sm font-medium text-white/85 hover:bg-white/10">
+                  I called them
+                </button>
+              )}
               <button onClick={() => answer(s, "dismiss")} className="rounded-full px-3 py-1 text-sm text-white/85 hover:bg-white/10">
                 Dismiss
               </button>
@@ -201,6 +218,8 @@ export default function Home(props: Props) {
           </div>
         ))}
       </section>
+
+      <YourPeople snap={snap} now={now} pick={(id) => { setPersonId(id); setPersonQuery(""); setPersonFact(""); }} />
 
       {people.length > 0 && (
         <section className="order-5 space-y-2">
@@ -247,13 +266,19 @@ export default function Home(props: Props) {
                 <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                   <span className="text-white/75">{person.name} is your</span>
                   <RelationBlank key={`${person.id}:${person.relation}`} value={person.relation} onSave={(relation) => describe(person.id, { relation })} />
-                  <label className="flex items-center gap-1 text-white/75">
-                    <input type="checkbox" checked={person.close} onChange={(e) => describe(person.id, { close: e.target.checked })} className="accent-[#cef82c]" />
-                    keep close
-                  </label>
                 </div>
               )}
-              {person.relationSource === "inferred" && person.relationWhy && <div className="mt-1 text-xs text-white/60">Worked out from your chat: {person.relationWhy}</div>}
+              {person.relationSource === "inferred" && person.relationWhy && (
+                <div className="mt-1 text-xs text-white/60">
+                  Worked out from your chat: {person.relationWhy}
+                  {FAMILY_RELATIONS.has(person.relation) && !person.family && (
+                    <button onClick={() => describe(person.id, { family: true })} className="ml-2 rounded-full border border-equal-lime px-2 py-0.5 font-semibold text-equal-lime hover:bg-white/10">
+                      Add to family
+                    </button>
+                  )}
+                </div>
+              )}
+              {!person.unknown && person.id !== "self" && <Circle person={person} snap={snap} now={now} describe={describe} />}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -400,4 +425,159 @@ function RelationBlank({ value, onSave }: { value: string; onSave: (relation: st
       </datalist>
     </>
   );
+}
+
+const everyWords = (n: number) => (n === 1 ? "every day" : n === 7 ? "every week" : n === 14 ? "every 2 weeks" : n === 30 ? "every month" : `every ${n} days`);
+
+/** "Due today", "in 2 days", "3 days overdue": where things stand with someone who has a rhythm. */
+function dueWords(dueIn: number) {
+  if (dueIn > 1) return { text: `in ${dueIn} days`, late: false };
+  if (dueIn === 1) return { text: "tomorrow", late: false };
+  if (dueIn === 0) return { text: "due today", late: true };
+  return { text: `${-dueIn} day${dueIn === -1 ? "" : "s"} overdue`, late: true };
+}
+
+/**
+ * The people I care about, family first, with when each is next due. Everyone else is an
+ * acquaintance and is not listed here. Until the user picks someone, it says how.
+ */
+function YourPeople({ snap, now, pick }: { snap: Snapshot; now: number; pick: (id: string) => void }) {
+  const mine = snap.contacts.filter((c) => (c.close || c.family) && !c.unknown && c.id !== "self");
+  if (!mine.length) {
+    if (!snap.contacts.some((c) => c.id !== "self" && !c.unknown)) return null;
+    return (
+      <section className="order-4 rounded-2xl border border-dashed border-white/30 p-4 text-sm text-white/75">
+        <h2 className={`${label} text-white/70`}>Your people</h2>
+        <p className="mt-1">
+          Everyone starts as an acquaintance. Pick a person below and mark them as family or one of your people, and say how often you want to stay in touch. Or tell me: &ldquo;Amma is my mother, remind me to talk to her every 2 days&rdquo;.
+        </p>
+      </section>
+    );
+  }
+  const rows = mine
+    .map((c) => {
+      const s = inTouch(snap, c.id);
+      return { c, s, r: rhythmStatus(c, s, now) };
+    })
+    .sort((a, b) => Number(Boolean(b.c.family)) - Number(Boolean(a.c.family)) || (a.r?.dueIn ?? 99) - (b.r?.dueIn ?? 99));
+  return (
+    <section className="order-4 space-y-2">
+      <h2 className={`${label} text-white/70`}>Your people</h2>
+      <div className="grid gap-2 md:grid-cols-2">
+        {rows.map(({ c, s, r }) => {
+          const due = r ? dueWords(r.dueIn) : null;
+          return (
+            <button key={c.id} onClick={() => pick(c.id)} className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 p-3 text-left hover:bg-white/10">
+              <Avatar name={c.name} picture={c.picture} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 truncate font-semibold">
+                  {c.name}
+                  {c.family && <span className={`${label} rounded bg-white/15 px-1.5 py-0.5 text-white/80`}>Family</span>}
+                </div>
+                <div className="truncate text-xs text-white/60">
+                  {s.last ? `Last talked ${ago(s.last, now)}` : "Not talked here yet"}
+                  {s.unanswered ? " · waiting for your reply" : ""}
+                </div>
+              </div>
+              {due && c.everyDays && (
+                <div className={`shrink-0 text-right text-xs ${due.late ? "font-semibold text-equal-lime" : "text-white/60"}`}>
+                  {due.text}
+                  <div className="font-normal text-white/50">{everyWords(c.everyDays)}</div>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Who this person is in my life (acquaintance, one of my people, family), how often to stay in touch, and our history. */
+function Circle({ person, snap, now, describe }: { person: Contact; snap: Snapshot; now: number; describe: (id: string, change: PersonChange) => void }) {
+  const circle = person.family ? "family" : person.close ? "mine" : "acquaintance";
+  const s = inTouch(snap, person.id);
+  const r = rhythmStatus(person, s, now);
+  const history = historyOf(snap, person.id, 10);
+  const chip = (on: boolean) => `rounded-full px-3 py-1 text-sm font-medium ${on ? "bg-equal-lime text-equal-ink" : "border border-white/25 text-white/85 hover:bg-white/10"}`;
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Who ${person.name} is in your life`}>
+        <button aria-pressed={circle === "acquaintance"} onClick={() => describe(person.id, { close: false })} className={chip(circle === "acquaintance")}>
+          Acquaintance
+        </button>
+        <button aria-pressed={circle === "mine"} onClick={() => describe(person.id, { close: true, family: false })} className={chip(circle === "mine")}>
+          One of my people
+        </button>
+        <button aria-pressed={circle === "family"} onClick={() => describe(person.id, { family: true })} className={chip(circle === "family")}>
+          Family
+        </button>
+      </div>
+      {circle !== "acquaintance" && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <label htmlFor={`every-${person.id}`} className="text-white/75">
+            Stay in touch
+          </label>
+          <select
+            id={`every-${person.id}`}
+            value={person.everyDays ?? 0}
+            onChange={(e) => describe(person.id, { everyDays: Number(e.target.value) || null })}
+            className="rounded-full border border-white/25 bg-equal-ink px-3 py-1 text-sm text-white outline-none focus:border-equal-lime"
+          >
+            <option value={0}>no reminders</option>
+            {RHYTHMS.map((n) => (
+              <option key={n} value={n}>
+                {everyWords(n)}
+              </option>
+            ))}
+            {person.everyDays && !(RHYTHMS as readonly number[]).includes(person.everyDays) && <option value={person.everyDays}>{everyWords(person.everyDays)}</option>}
+          </select>
+          {r && <span className={dueWords(r.dueIn).late ? "font-semibold text-equal-lime" : "text-white/60"}>{dueWords(r.dueIn).text}</span>}
+        </div>
+      )}
+      <div className="text-xs text-white/60">{lastPhrase(person, s, now)}</div>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => describe(person.id, { logged: "call" })} className="rounded-full border border-white/30 px-3 py-1 text-sm text-white/85 hover:bg-white/10">
+          I called {person.name}
+        </button>
+        <button onClick={() => describe(person.id, { logged: "met" })} className="rounded-full border border-white/30 px-3 py-1 text-sm text-white/85 hover:bg-white/10">
+          We met
+        </button>
+      </div>
+      {history.length > 0 && (
+        <div>
+          <h3 className={`${label} text-white/60`}>Who reached out, and when</h3>
+          <ul className="mt-1.5 space-y-1">
+            {history.map((h, i) => (
+              <li key={`${h.at}-${i}`} className="flex items-center justify-between gap-3 text-sm">
+                <span className={h.dir === "in" ? "text-white/90" : "text-white/70"}>{historyWords(h, person.name)}</span>
+                <span className="shrink-0 text-xs text-white/50">
+                  {ago(Date.parse(h.at), now)}, {new Date(h.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function historyWords(h: HistoryItem, name: string) {
+  const n = h.count && h.count > 1 ? ` · ${h.count} messages` : "";
+  const mins = h.mins ? ` · ${h.mins} min` : "";
+  switch (h.kind) {
+    case "text":
+      return (h.dir === "in" ? `${name} texted you` : `You texted ${name}`) + n;
+    case "call":
+      return (h.dir === "in" ? `${name} called you` : `You called ${name}`) + mins;
+    case "video":
+      return (h.dir === "in" ? `Video call from ${name}` : `You video-called ${name}`) + mins;
+    case "missed":
+      return h.dir === "in" ? `Missed call from ${name}` : `${name} didn't pick up`;
+    case "logged_call":
+      return `You called ${name} (outside My Equal)${mins}`;
+    case "met":
+      return `You met ${name}`;
+  }
 }

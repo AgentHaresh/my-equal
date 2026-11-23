@@ -4,12 +4,16 @@ import { poke } from "./live";
 import { loadEverything, saveEverything, storageInfo } from "./storage";
 import { errorText, log } from "./log";
 import { count, timing } from "./metrics";
+import { CONCERN, ago, daysSince, inTouch, lastPhrase, type Touch } from "./touch";
 
 export type Contact = {
   id: string;
   name: string;
   relation: string;
-  close: boolean; // someone the user wants to stay close to
+  close: boolean; // one of the people I care about; everyone else is an acquaintance until I say so
+  family?: boolean; // I said they are family
+  everyDays?: number; // how often I want to be in touch with them, in days; set only by me
+  nudgedFor?: string; // the last "time to talk" nudge sent as a notification, so it goes once
   lastContactAt: string;
   relationSource?: "inferred" | "user"; // how the relation was decided; "user" is never overwritten
   relationWhy?: string;
@@ -38,6 +42,7 @@ export type Message = {
   reactions?: { me?: string; them?: string }; // one reaction from each side
   forwarded?: boolean; // passed on from another chat
   pair?: string; // shared by the two copies of a message between real people, so an edit reaches both
+  tone?: { mood: string; note: string }; // how a message from them sounded, as Equal read it; private to me
 };
 export type Memory = {
   id: string;
@@ -59,7 +64,7 @@ export type Memory = {
 };
 export type Suggestion = {
   id: string;
-  type: "intent" | "keep_close" | "follow_up" | "guardian" | "reminder";
+  type: "intent" | "keep_close" | "follow_up" | "guardian" | "reminder" | "reply" | "tone";
   contactId: string;
   title: string;
   detail: string;
@@ -137,6 +142,7 @@ export type DB = {
   suggestions: Suggestion[]; // stored ones (intent offers)
   dismissed: string[]; // ids of computed nudges the user dismissed
   gateLog: GateEntry[];
+  touches?: Touch[]; // calls and meetings with each person; texts are the messages themselves
 };
 
 const DAY = 86400000;
@@ -233,6 +239,7 @@ export function removeSamples(space: DB) {
   space.suggestions = space.suggestions.filter((x) => !gone.has(x.contactId));
   space.jobs = space.jobs.filter((j) => !gone.has(j.contactId));
   if (space.screens) space.screens = space.screens.filter((x) => !gone.has(x.contactId));
+  if (space.touches) space.touches = space.touches.filter((t) => !gone.has(t.contactId));
 }
 
 /**
@@ -341,6 +348,7 @@ export function resetSamples(space: DB) {
   space.memories = [...space.memories.filter((m) => keep.has(m.contactId)), ...fresh.memories];
   space.suggestions = space.suggestions.filter((x) => keep.has(x.contactId));
   space.jobs = space.jobs.filter((j) => keep.has(j.contactId));
+  space.touches = [...(space.touches ?? []).filter((t) => keep.has(t.contactId)), ...(fresh.touches ?? [])];
   space.gateLog = [];
   space.dismissed = [];
   space.screens = [];
@@ -354,25 +362,58 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
   const out: Suggestion[] = [];
   const drifting = new Set<string>();
   for (const c of db.contacts) {
-    const days = Math.floor((now - new Date(c.lastContactAt).getTime()) / DAY);
-    // Compare the silence with how often we usually talk; without history, two weeks.
+    // Only the people I care about get nudges. Everyone else is an acquaintance until I say otherwise.
+    if (!(c.close || c.family) || c.owner || c.unknown || c.id === "self") continue;
+    const s = inTouch(db, c.id);
+    const name = c.name;
+    // They wrote, and I have not answered. If they sounded low, say that instead: it matters more.
+    const u = s.unanswered;
+    if (u && now - Date.parse(u.at) < 7 * DAY) {
+      const waited = now - Date.parse(u.at);
+      const when = ago(Date.parse(u.at), now);
+      if (u.tone && CONCERN.has(u.tone.mood) && waited < 3 * DAY) {
+        drifting.add(c.id);
+        out.push({ id: `tn-${u.id}`, type: "tone", contactId: c.id, title: `${name} sounded ${u.tone.mood} ${when}`, detail: `${u.tone.note.replace(/\.$/, "")}. They wrote: "${clip(u.text)}"`, status: "new", createdAt: u.at });
+        continue;
+      }
+      if (waited > 3 * 3600000) {
+        drifting.add(c.id);
+        out.push({ id: `rp-${u.id}`, type: "reply", contactId: c.id, title: `${name} wrote to you ${when} and you haven't replied`, detail: `"${clip(u.text)}"`, status: "new", createdAt: u.at });
+        continue;
+      }
+    }
+    // The rhythm I chose ("Amma, every 2 days") comes first. Without one, compare the silence
+    // with how often we usually talk; without history, two weeks.
+    const since = s.last ?? Date.parse(c.lastContactAt);
+    const days = daysSince(since, now);
+    if (c.everyDays) {
+      if (days < c.everyDays) continue;
+      drifting.add(c.id);
+      const cycle = Math.floor(days / c.everyDays); // a dismissed nudge comes back after another full period
+      const every = c.everyDays === 1 ? "every day" : c.everyDays === 7 ? "every week" : `every ${c.everyDays} days`;
+      out.push({
+        id: `kc-${c.id}-${todayIST(since)}-${cycle}`,
+        type: "keep_close",
+        contactId: c.id,
+        title: days === c.everyDays ? `Time to talk to ${name}` : `It's been ${days} days since you talked to ${name}`,
+        detail: `You wanted to stay in touch ${every}. ${lastPhrase(c, s, now)}${askAbout(db, c.id, now)}`,
+        status: "new",
+        createdAt: new Date(since).toISOString(),
+      });
+      continue;
+    }
     const usual = rhythmDays(db, c.id);
     const limit = usual ? Math.max(7, Math.ceil(usual * 3)) : 14;
-    if (!c.close || c.owner || days < limit) continue;
+    if (days < limit) continue;
     drifting.add(c.id);
-    const recent = db.memories
-      .filter((m) => m.contactId === c.id && m.status === "open" && m.about !== "user")
-      .sort((a, b) => (b.when ?? b.createdAt).localeCompare(a.when ?? a.createdAt))[0];
     out.push({
       id: `kc-${c.id}`,
       type: "keep_close",
       contactId: c.id,
-      title: `It's been ${days} days since you spoke to ${c.name}`,
-      detail:
-        (usual ? `You usually talk every ${usual <= 1 ? "day" : `${Math.round(usual)} days`}. ` : "") +
-        (recent ? `Something to ask about: ${recent.fact.replace(/\.$/, "")}${whenPhrase(recent.when, now)}.` : "A quick call or voice note would do."),
+      title: `It's been ${days} days since you spoke to ${name}`,
+      detail: (usual ? `You usually talk every ${usual <= 1 ? "day" : `${Math.round(usual)} days`}. ` : "") + (askAbout(db, c.id, now).trim() || "A quick call or voice note would do."),
       status: "new",
-      createdAt: c.lastContactAt,
+      createdAt: new Date(since).toISOString(),
     });
   }
   for (const m of db.memories) {
@@ -422,6 +463,27 @@ export function computeNudges(db: DB, now = Date.now()): Suggestion[] {
   }
   mine.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return [...mine, ...out].filter((s) => !db.dismissed.includes(s.id));
+}
+
+const clip = (t: string) => (t.length > 90 ? `${t.slice(0, 87).trimEnd()}…` : t);
+
+/** Something worth asking them about when we next talk: the newest open thing in their life. */
+function askAbout(db: DB, contactId: string, now: number): string {
+  const recent = db.memories
+    .filter((m) => m.contactId === contactId && m.status === "open" && m.about !== "user" && (m.kind === "event" || m.kind === "worry"))
+    .sort((a, b) => (b.when ?? b.createdAt).localeCompare(a.when ?? a.createdAt))[0];
+  return recent ? ` Something to ask about: ${recent.fact.replace(/\.$/, "")}${whenPhrase(recent.when, now)}.` : "";
+}
+
+/** Keep a call or meeting with someone. It counts as being in touch. */
+export function recordTouch(db: DB, t: Omit<Touch, "id">): Touch {
+  const touch = { id: uid(), ...t };
+  const list = (db.touches ??= []);
+  list.push(touch);
+  if (list.length > 2000) list.splice(0, list.length - 2000);
+  const c = db.contacts.find((x) => x.id === t.contactId);
+  if (c && t.kind !== "missed" && t.at > c.lastContactAt) c.lastContactAt = t.at;
+  return touch;
 }
 
 function whenPhrase(when: string | null, now: number) {

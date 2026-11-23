@@ -21,8 +21,8 @@ let a = await asha.json("/api/state");
 check("a new account starts with the sample chats", a.contacts.some((c) => c.id === "ravi" && c.sample));
 // There is no directory. Nobody can see who else is on Equal.
 check("the state lists no other people", a.people === undefined && !JSON.stringify(a).includes(bala.user.id) && !JSON.stringify(a).includes("Bala"));
-// A chat starts only from something I already know: their phone number or their username.
-// Email lookup is gone: people sign in with a phone number only.
+// A chat starts only from something I already know: their username.
+// Email and phone lookup are switched off.
 const setProfile = (who, fields) => {
   const form = new FormData();
   for (const [k, v] of Object.entries(fields)) form.set(k, v);

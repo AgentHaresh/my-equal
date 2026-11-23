@@ -5,7 +5,7 @@ import type { Snapshot } from "@/lib/snapshot";
 import type { Answer } from "@/lib/ask";
 import SignIn from "./SignIn";
 import { ChatIcon, SparkIcon } from "./Icons";
-import { label, param, presenceWords, type Contact, type Msg, type Pane, type Suggestion } from "./messenger/format";
+import { label, param, presenceWords, type Contact, type Msg, type Pane, type PersonChange, type Suggestion } from "./messenger/format";
 import { Wordmark } from "./messenger/parts";
 import { useCalls } from "./messenger/useCalls";
 import CallOverlay from "./messenger/CallOverlay";
@@ -442,7 +442,7 @@ export default function Messenger({ role }: Props) {
   async function answer(s: Suggestion, action: "accept" | "dismiss") {
     const next = await api("/api/suggestions", "POST", { id: s.id, action });
     if (next.contacts) setSnap(next);
-    if (action === "accept" && (s.type === "keep_close" || s.type === "follow_up")) open(s.contactId);
+    if (action === "accept" && (s.type === "keep_close" || s.type === "follow_up" || s.type === "reply" || s.type === "tone")) open(s.contactId);
   }
 
   async function bookProvider(jobId: string, callId: string) {
@@ -458,14 +458,16 @@ export default function Messenger({ role }: Props) {
   /** Start a chat with someone by their phone number, if they are on My Equal. */
   async function startByNumber() {
     setNumberNote(null);
-    // Letters mean a username (with or without the @); otherwise it is a phone number.
-    const byUsername = /[a-z]/i.test(newNumber);
-    const res = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(byUsername ? { username: newNumber } : { phone: newNumber }) });
+    // Chats start by @username. (Phone numbers are switched off while sign-in is Google only:
+    // letters meant a username, otherwise it was a phone number, and a number not found got a texted invite.)
+    // const byUsername = /[a-z]/i.test(newNumber);
+    // ... JSON.stringify(byUsername ? { username: newNumber } : { phone: newNumber })
+    const res = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: newNumber }) });
     const next = await res.json();
     setInviteSms(null);
-    // An invitation can be texted to a number; a username that is not found gets no invite.
-    setInviteFor(res.status === 404 && !byUsername ? newNumber : null);
-    if (!res.ok) return setNumberNote(res.status === 404 && !byUsername ? "That number is not on Equal yet. Invite them?" : (next.error ?? "Could not start that chat."));
+    // Not found: offer the invite link to copy ("" shows Copy link only, with no text-message button).
+    setInviteFor(res.status === 404 ? "" : null);
+    if (!res.ok) return setNumberNote(res.status === 404 ? `${next.error ?? "Nobody on My Equal has that username."} Invite them?` : (next.error ?? "Could not start that chat."));
     setSnap(next);
     setNewNumber("");
     if (next.contactId) open(next.contactId);
@@ -646,7 +648,7 @@ export default function Messenger({ role }: Props) {
     }
   }
 
-  async function describe(contactId: string, change: { relation?: string; close?: boolean }) {
+  async function describe(contactId: string, change: PersonChange) {
     const next = await api("/api/contacts", "POST", { contactId, ...change });
     if (next.contacts) setSnap(next);
   }
@@ -759,7 +761,7 @@ export default function Messenger({ role }: Props) {
 
         {isMe && (
           <Home
-            {...{ pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, removeJob, draftFor, placeCall }}
+            {...{ pane, snap, me, now, greeting, reminders, unreadTotal, askQuestion, question, setQuestion, asking, addPhoto, askReminder, reply, setReply, answer, urgent, others, bookProvider, removeJob, tryDemo: () => setDemo(true), draftFor, placeCall }}
             {...{ people, peopleShown, person, personMemories, personQuery, setPersonQuery, setPersonId, personFact, setPersonFact, open, describe, addFact, forget }}
             {...{ importing, importChat, importNote, importWho, contact, api, setSnap, setNotice }}
           />

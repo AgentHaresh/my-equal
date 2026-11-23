@@ -1,6 +1,7 @@
 import { DB, Contact, Message, parseWhen, todayIST, uid } from "./store";
 import { errorText, log } from "./log";
 import { modelCall } from "./metrics";
+import { MOODS } from "./touch";
 
 /**
  * The butler reads a conversation and does two jobs:
@@ -17,6 +18,7 @@ Return ONLY a JSON object with this shape:
 {
   "memories": [{"fact": string, "about": "user"|"contact", "kind": "event"|"promise"|"worry"|"preference", "when": string|null}],
   "resolved": [string],
+  "tone": null | {"mood": "happy"|"excited"|"grateful"|"neutral"|"tired"|"stressed"|"sad"|"upset"|"angry"|"worried"|"unwell"|"lonely"|"hurt", "note": string},
   "intent": null | {
     "need": string,
     "category": "mechanic"|"doctor"|"pharmacy"|"plumber"|"electrician"|"travel"|"other",
@@ -30,11 +32,18 @@ Return ONLY a JSON object with this shape:
 MEMORIES: facts from the NEWEST message only that are worth remembering later about the contact or the user:
 appointments, exams, interviews, trips, health worries, promises made by either side. "fact" is short and in English. The user reads these as their own notes, so a fact about the user is written as a plain note with no subject: "Demo at 2 pm", "Send Ravi the deck", never "User has a demo" or "The user will send". A fact about the contact names them by CONTACT's name. "about" is "user" when the fact concerns the user's own life, and "contact" when it concerns the contact.
 "when" is an ISO date (YYYY-MM-DD) if the message places it in time, or YYYY-MM-DDTHH:MM (24-hour, Indian time) if it also gives a time of day. Use TODAY and WEEKDAY to resolve words like Thursday, tomorrow or tonight. Otherwise null.
+PROMISES: catch every promise, in both directions, including small everyday ones, because a forgotten small promise hurts a relationship most:
+ - the user's: "I'll call you tonight", "will send the photos tomorrow", "let's meet Sunday", "I'll come home for Diwali", "next time I'll bring it", "sure, I'll check" ("about": "user", kind "promise");
+ - the contact's: "I'll send the papers", "will call you after the meeting", "I'll pick you up at 6" ("about": "contact", kind "promise", the fact naming them: "Ravi will send the papers").
+ A plan both agreed on ("so Sunday 6 pm at the cafe") is a promise of the user's. Hindi or Telugu promises count the same ("kal call karunga", "repu chesta", "vastanu").
+ If no day is said, "when" is null; if "later" or "tonight" is said, use TODAY.
 The user's own plans and promises matter most, because they must not be forgotten: "I have a client meeting at 4", "I'll send you the deck by Friday", "I need to renew the insurance this week". Record each with "about": "user", and use kind "promise" when the user said they would do something for someone.
 A problem the user is having right now (a breakdown, an illness, being stuck, something not working) is NOT a plan or a promise. If you record it at all, give it "when": null, so it is never shown as a reminder. Do not repeat a plan that KNOWN_MEMORIES already holds in other words.
 Do not repeat anything already listed in KNOWN_MEMORIES. Small talk produces no memories.
 
 RESOLVED: ids from KNOWN_MEMORIES that the newest message shows are finished or answered.
+
+TONE: only when the NEWEST message is from "them": how it sounds, read from its words, the conversation before it, and anything that changed (shorter replies than usual, no emoji where they usually use them, "ok." after a long silence). "mood" is the one word that fits best; use "neutral" for ordinary messages and do not read much into one short reply. "note" is one short, kind sentence to the user about what you noticed, naming the contact ("Priya seems stressed about her exams", "Nanna sounds lonely since you moved"). Never diagnose or overstate. When the NEWEST message is from "me", "tone" is null.
 
 INTENT: fill only if the NEWEST message is from "me" and reveals a practical problem.
 "speak" must be true ONLY when ALL hold:
@@ -51,6 +60,7 @@ If the message is ordinary conversation with no problem in it at all, "intent" i
 type Analysis = {
   memories?: { fact: string; about?: string; kind: string; when: string | null }[];
   resolved?: string[];
+  tone?: null | { mood?: string; note?: string };
   intent?: null | {
     need: string;
     category: string;
@@ -242,6 +252,11 @@ export function applyAnalysis(db: DB, contact: Contact, msg: Message, a: Analysi
       status: "open",
       createdAt: now,
     });
+  }
+  // How their message sounded is kept on the message itself, privately, for the user's eyes only.
+  const mood = a.tone?.mood;
+  if (msg.from === "them" && mood && mood !== "neutral" && (MOODS as readonly string[]).includes(mood) && typeof a.tone?.note === "string") {
+    msg.tone = { mood, note: a.tone.note.trim().slice(0, 160) };
   }
   for (const id of a.resolved ?? []) {
     const m = db.memories.find((x) => x.id === id && x.contactId === contact.id);

@@ -1,4 +1,5 @@
 import type { Contact, DB, Memory, Message } from "./store";
+import type { Touch } from "./touch";
 
 /**
  * The sample life every new account starts with, so each feature has something real to show.
@@ -8,7 +9,9 @@ import type { Contact, DB, Memory, Message } from "./store";
  *
  * Every date is relative to "now", so the reminders and nudges are always current:
  *  - Don't forget: one overdue, one due today, two due tomorrow
- *  - Stay close:   Anna (22 days, usually every 3) and Priya (9 days, usually every 2)
+ *  - Family:       Nanna (every 2 days, due today), Priya (every 3 days, 9 days quiet),
+ *                  Anna (every week; he last called 12 days ago)
+ *  - Unanswered:   Ravi's thank-you from yesterday
  *  - Follow up:    Ravi's sister's engagement
  *  - Ask me:       rent, the visa interview, Nanna's tablets, the trip, a birthday
  */
@@ -57,7 +60,7 @@ export function sampleSpace(now = Date.now()): DB {
     [1, "10:05", "them", "Thanks. Lunch after the review, my treat."],
   ]);
 
-  person({ id: "nanna", name: "Nanna", relation: "father", close: true }, [
+  person({ id: "nanna", name: "Nanna", relation: "father", close: true, family: true, everyDays: 2 }, [
     [10, "08:30", "them", "Pension credit ayyinda chudu nanna, message raaledu."],
     [10, "08:41", "me", "Chusta Nanna, bank app lo check chesta."],
     [8, "09:10", "me", "Credit ayyindi Nanna, 5th na vachindi."],
@@ -78,7 +81,7 @@ export function sampleSpace(now = Date.now()): DB {
     [1, "09:12", "me", "Noted, will transfer."],
   ]);
 
-  person({ id: "priya", name: "Priya", relation: "sister", close: true }, [
+  person({ id: "priya", name: "Priya", relation: "sister", close: true, family: true, everyDays: 3 }, [
     [21, "14:05", "them", "Anna! Visa interview slot dorikindi, Chennai consulate lo."],
     [21, "14:08", "me", "Super ra! Date eppudu?"],
     [19, "20:15", "them", "December 3rd, morning 9:30 ki. DS-160 kuda submit chesa."],
@@ -94,8 +97,11 @@ export function sampleSpace(now = Date.now()): DB {
     [9, "21:00", "them", "Sare. Weekend call chey, Amma tho kuda matladali antondi."],
     [9, "21:03", "me", "Chesta."],
   ]);
+  // Priya's last message sounded worried; Equal read it that way.
+  const priyaLast = messages.filter((m) => m.contactId === "priya" && m.from === "them").pop();
+  if (priyaLast) priyaLast.tone = { mood: "worried", note: "Priya sounds anxious about the visa and wants the family to talk" };
 
-  person({ id: "anna", name: "Anna", relation: "brother", close: true }, [
+  person({ id: "anna", name: "Anna", relation: "brother", close: true, family: true, everyDays: 7 }, [
     [40, "19:30", "them", "Ra, pandaga ki intiki vastunnava? Amma adugutondi."],
     [40, "19:34", "me", "Vastanu Anna, tickets chustunna."],
     [37, "08:50", "them", "Nanna BP reports pampinchu, ikkada cardiologist ki chupista."],
@@ -159,5 +165,17 @@ export function sampleSpace(now = Date.now()): DB {
     remember("ravi", "Send Ravi the hotel shortlist for the Srisailam trip", { about: "user", kind: "promise", when: at(1, "00:00") }),
   ];
 
-  return { contacts, messages, memories, suggestions: [], dismissed: [], gateLog: [], jobs: [], screens: [] };
+  // Calls are part of who reached out to whom.
+  const touches: Touch[] = [
+    { id: id(), contactId: "nanna", kind: "call", dir: "out", at: at(-5, "20:30"), mins: 14 },
+    { id: id(), contactId: "anna", kind: "call", dir: "in", at: at(-12, "21:10"), mins: 22 },
+    { id: id(), contactId: "anna", kind: "missed", dir: "in", at: at(-16, "13:05") },
+    { id: id(), contactId: "priya", kind: "missed", dir: "out", at: at(-6, "19:40") },
+  ];
+  for (const t of touches) {
+    const c = contacts.find((x) => x.id === t.contactId);
+    if (c && t.kind !== "missed" && t.at > c.lastContactAt) c.lastContactAt = t.at;
+  }
+
+  return { contacts, messages, memories, touches, suggestions: [], dismissed: [], gateLog: [], jobs: [], screens: [] };
 }

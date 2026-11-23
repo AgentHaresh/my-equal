@@ -49,10 +49,15 @@ const imp = await me.json("/api/import", "POST", { text: lines.join("\n"), myNam
 const amma = imp.contacts?.find((c) => c.name === "Lakshmi");
 check("the imported chat arrives", imp.imported === lines.length && Boolean(amma), imp.error ?? "");
 check("it works out she is my mother", amma?.relation === "mother" && amma?.relationSource === "inferred", `${amma?.relation} — ${amma?.relationWhy}`);
-check("family is marked as someone to stay close to", amma?.close === true);
-const drift = imp.suggestions?.find((x) => x.type === "keep_close" && x.contactId === amma?.id);
-check("it notices we have gone quiet", Boolean(drift), drift?.title ?? "no nudge");
+// Who I care about is mine to say: Equal names the relation, but does not decide she is one of my people.
+check("Equal does not decide on its own who I care about", amma?.close === false && !imp.suggestions?.some((x) => x.type === "keep_close" && x.contactId === amma?.id));
+let s0 = await me.json("/api/contacts", "POST", { contactId: amma.id, close: true });
+const drift = s0.suggestions?.find((x) => x.type === "keep_close" && x.contactId === amma?.id);
+check("once I say she matters, it notices we have gone quiet", Boolean(drift), drift?.title ?? "no nudge");
 check("and compares that with how often we usually talk", /usually talk every 2 days/.test(drift?.detail ?? ""), drift?.detail ?? "");
+s0 = await me.json("/api/contacts", "POST", { contactId: amma.id, family: true, everyDays: 3 });
+const due = s0.suggestions?.find((x) => x.type === "keep_close" && x.contactId === amma?.id);
+check("with a rhythm I set, it uses mine instead", /every 3 days/.test(due?.detail ?? ""), due?.detail ?? "no nudge");
 
 // --- The user's own word about a relationship is final.
 s = await me.json("/api/contacts", "POST", { contactId: amma.id, relation: "family" });

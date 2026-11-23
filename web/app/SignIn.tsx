@@ -1,95 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-// Google sign-in is switched off: people sign in with their phone number only.
-// type GoogleId = {
-//   initialize: (o: { client_id: string; callback: (r: { credential: string }) => void }) => void;
-//   renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
-// };
-// declare global {
-//   interface Window {
-//     google?: { accounts: { id: GoogleId } };
-//   }
-// }
+type GoogleId = {
+  initialize: (o: { client_id: string; callback: (r: { credential: string }) => void }) => void;
+  renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
+};
+declare global {
+  interface Window {
+    google?: { accounts: { id: GoogleId } };
+  }
+}
 
 const post = (body: unknown) => fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /**
- * The first screen. People sign in with their phone number and a one-time code, the way they
- * expect a messenger to work. Google sign-in is switched off (commented out below).
+ * The first screen. For now people sign in with Google only. Phone sign-in (a number and a
+ * one-time code) is switched off; its code is kept, commented out, at the end of this file.
  */
-export default function SignIn({ onDone }: { clientId: string; onDone: () => void }) {
-  // const slot = useRef<HTMLDivElement>(null);
+export default function SignIn({ clientId, onDone }: { clientId: string; onDone: () => void }) {
+  const slot = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<"phone" | "code">("phone");
-  const [phone, setPhone] = useState("");
-  const [sentTo, setSentTo] = useState("");
-  const [code, setCode] = useState("");
-  const [shownCode, setShownCode] = useState<string | null>(null);
-  const [why, setWhy] = useState<string | null>(null); // why the code could not be texted, if it was tried
-  const [busy, setBusy] = useState(false);
 
-  // useEffect(() => {
-  //   if (!clientId) return;
-  //   const start = () => {
-  //     if (!window.google || !slot.current) return;
-  //     window.google.accounts.id.initialize({
-  //       client_id: clientId,
-  //       callback: async ({ credential }) => {
-  //         const res = await post({ credential });
-  //         if (res.ok) onDone();
-  //         else setError((await res.json()).error ?? "Sign-in failed.");
-  //       },
-  //     });
-  //     window.google.accounts.id.renderButton(slot.current, { theme: "filled_black", size: "large", shape: "pill", text: "continue_with", width: 280 });
-  //   };
-  //   if (window.google) return start();
-  //   const script = document.createElement("script");
-  //   script.src = "https://accounts.google.com/gsi/client";
-  //   script.async = true;
-  //   script.onload = start;
-  //   script.onerror = () => setError("Could not load Google sign-in. Check your connection.");
-  //   document.head.appendChild(script);
-  // }, [clientId, onDone]);
-
-  async function askForCode() {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await post({ phone });
-      const r = await res.json();
-      if (!res.ok) return setError(r.error ?? "Could not send the code.");
-      setSentTo(r.phone);
-      setShownCode(r.sent ? null : (r.shownCode ?? null));
-      setWhy(r.sent ? null : (r.why ?? null));
-      setCode("");
-      setStep("code");
-    } catch {
-      setError("Could not reach My Equal. Check your connection.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirm() {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await post({ phone: sentTo, code });
-      if (res.ok) return onDone();
-      setError((await res.json()).error ?? "Sign-in failed.");
-    } catch {
-      setError("Could not reach My Equal. Check your connection.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const field = "w-full rounded-2xl border border-white/20 bg-white/5 px-4 py-3.5 text-lg text-white outline-none placeholder:text-white/40 focus:border-equal-lime";
-  const primary = "w-full rounded-2xl bg-equal-lime py-3.5 text-lg font-bold text-equal-ink transition disabled:opacity-40";
+  useEffect(() => {
+    if (!clientId) return;
+    const start = () => {
+      if (!window.google || !slot.current) return;
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async ({ credential }) => {
+          const res = await post({ credential });
+          if (res.ok) onDone();
+          else setError((await res.json()).error ?? "Sign-in failed.");
+        },
+      });
+      window.google.accounts.id.renderButton(slot.current, { theme: "filled_black", size: "large", shape: "pill", text: "continue_with", width: 280 });
+    };
+    if (window.google) return start();
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = start;
+    script.onerror = () => setError("Could not load Google sign-in. Check your connection.");
+    document.head.appendChild(script);
+  }, [clientId, onDone]);
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10 text-center text-white">
@@ -107,70 +61,14 @@ export default function SignIn({ onDone }: { clientId: string; onDone: () => voi
         <p className="mt-4 text-lg text-white/75">Life gets busy. My Equal remembers, reminds and reaches out, so no one you care about feels forgotten.</p>
       </div>
 
-      <div className="glass w-full max-w-sm rounded-3xl p-5 text-left">
-        {step === "phone" ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              askForCode();
-            }}
-            className="space-y-3"
-          >
-            <label htmlFor="phone" className="block text-sm font-semibold text-white/80">
-              Your phone number
-            </label>
-            <div className="flex gap-2">
-              <span className="flex items-center rounded-2xl border border-white/20 bg-white/5 px-3 text-lg text-white/80">+91</span>
-              <input id="phone" type="tel" inputMode="numeric" autoComplete="tel-national" autoFocus value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" className={field} />
-            </div>
-            <button disabled={busy || phone.replace(/\D/g, "").length < 10} className={primary}>
-              {busy ? "Sending…" : "Send me a code"}
-            </button>
-          </form>
+      <div className="glass flex w-full max-w-sm flex-col items-center gap-3 rounded-3xl p-6">
+        {clientId ? (
+          <div ref={slot} className="flex min-h-[44px] justify-center" />
         ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              confirm();
-            }}
-            className="space-y-3"
-          >
-            <label htmlFor="code" className="block text-sm font-semibold text-white/80">
-              Enter the 6-digit code {shownCode ? "" : `sent to ${sentTo}`}
-            </label>
-            {shownCode && (
-              <div className="rounded-2xl border border-amber-300/40 bg-amber-300/10 px-3 py-2.5 text-sm text-amber-100">
-                {why ? `The code could not be texted (${why.replace(/\.$/, "")}), so it is shown here instead: ` : "No SMS service is connected to this server yet, so the code is shown here instead: "}
-                <span className="font-mono text-lg font-bold tracking-widest text-white">{shownCode}</span>
-              </div>
-            )}
-            <input id="code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="••••••" className={`${field} text-center font-mono text-2xl tracking-[0.5em]`} />
-            <button disabled={busy || code.length !== 6} className={primary}>
-              {busy ? "Checking…" : "Continue"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStep("phone");
-                setError(null);
-              }}
-              className="w-full py-1 text-sm text-white/60 underline"
-            >
-              Use a different number
-            </button>
-          </form>
+          <p className="text-sm text-white/70">Google sign-in is not set up on this server yet.</p>
         )}
-        {error && <div className="mt-3 rounded-xl bg-rose-600 px-3 py-2 text-sm">{error}</div>}
+        {error && <div className="w-full rounded-xl bg-rose-600 px-3 py-2 text-left text-sm">{error}</div>}
       </div>
-
-      {/* Google sign-in is switched off: phone number only.
-      {clientId && (
-        <div className="flex flex-col items-center gap-3">
-          <span className="text-xs uppercase tracking-[0.2em] text-white/40">or</span>
-          <div ref={slot} className="min-h-[44px]" />
-        </div>
-      )}
-      */}
 
       <p className="max-w-md text-xs leading-relaxed text-white/50">
         Built at Builders 2026. Equal reads your messages with an AI model (OpenAI) so it can help you. Only you see what it notices. Please don&apos;t share anything sensitive here.
@@ -178,3 +76,79 @@ export default function SignIn({ onDone }: { clientId: string; onDone: () => voi
     </div>
   );
 }
+
+/*
+ * Phone sign-in, switched off for now. To bring it back: restore the phone block in
+ * app/api/auth/route.ts, put this state and these handlers back into SignIn, and render the
+ * forms below in place of (or next to) the Google button.
+ *
+ *  const [step, setStep] = useState<"phone" | "code">("phone");
+ *  const [phone, setPhone] = useState("");
+ *  const [sentTo, setSentTo] = useState("");
+ *  const [code, setCode] = useState("");
+ *  const [shownCode, setShownCode] = useState<string | null>(null);
+ *  const [why, setWhy] = useState<string | null>(null); // why the code could not be texted, if it was tried
+ *  const [busy, setBusy] = useState(false);
+ *
+ *  async function askForCode() {
+ *    if (busy) return;
+ *    setBusy(true);
+ *    setError(null);
+ *    try {
+ *      const res = await post({ phone });
+ *      const r = await res.json();
+ *      if (!res.ok) return setError(r.error ?? "Could not send the code.");
+ *      setSentTo(r.phone);
+ *      setShownCode(r.sent ? null : (r.shownCode ?? null));
+ *      setWhy(r.sent ? null : (r.why ?? null));
+ *      setCode("");
+ *      setStep("code");
+ *    } catch {
+ *      setError("Could not reach My Equal. Check your connection.");
+ *    } finally {
+ *      setBusy(false);
+ *    }
+ *  }
+ *
+ *  async function confirm() {
+ *    if (busy) return;
+ *    setBusy(true);
+ *    setError(null);
+ *    try {
+ *      const res = await post({ phone: sentTo, code });
+ *      if (res.ok) return onDone();
+ *      setError((await res.json()).error ?? "Sign-in failed.");
+ *    } catch {
+ *      setError("Could not reach My Equal. Check your connection.");
+ *    } finally {
+ *      setBusy(false);
+ *    }
+ *  }
+ *
+ *  const field = "w-full rounded-2xl border border-white/20 bg-white/5 px-4 py-3.5 text-lg text-white outline-none placeholder:text-white/40 focus:border-equal-lime";
+ *  const primary = "w-full rounded-2xl bg-equal-lime py-3.5 text-lg font-bold text-equal-ink transition disabled:opacity-40";
+ *
+ *  {step === "phone" ? (
+ *    <form onSubmit={(e) => { e.preventDefault(); askForCode(); }} className="space-y-3">
+ *      <label htmlFor="phone" className="block text-sm font-semibold text-white/80">Your phone number</label>
+ *      <div className="flex gap-2">
+ *        <span className="flex items-center rounded-2xl border border-white/20 bg-white/5 px-3 text-lg text-white/80">+91</span>
+ *        <input id="phone" type="tel" inputMode="numeric" autoComplete="tel-national" autoFocus value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" className={field} />
+ *      </div>
+ *      <button disabled={busy || phone.replace(/\D/g, "").length < 10} className={primary}>{busy ? "Sending…" : "Send me a code"}</button>
+ *    </form>
+ *  ) : (
+ *    <form onSubmit={(e) => { e.preventDefault(); confirm(); }} className="space-y-3">
+ *      <label htmlFor="code" className="block text-sm font-semibold text-white/80">Enter the 6-digit code {shownCode ? "" : `sent to ${sentTo}`}</label>
+ *      {shownCode && (
+ *        <div className="rounded-2xl border border-amber-300/40 bg-amber-300/10 px-3 py-2.5 text-sm text-amber-100">
+ *          {why ? `The code could not be texted (${why.replace(/\.$/, "")}), so it is shown here instead: ` : "No SMS service is connected to this server yet, so the code is shown here instead: "}
+ *          <span className="font-mono text-lg font-bold tracking-widest text-white">{shownCode}</span>
+ *        </div>
+ *      )}
+ *      <input id="code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="••••••" className={`${field} text-center font-mono text-2xl tracking-[0.5em]`} />
+ *      <button disabled={busy || code.length !== 6} className={primary}>{busy ? "Checking…" : "Continue"}</button>
+ *      <button type="button" onClick={() => { setStep("phone"); setError(null); }} className="w-full py-1 text-sm text-white/60 underline">Use a different number</button>
+ *    </form>
+ *  )}
+ */

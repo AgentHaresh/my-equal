@@ -5,12 +5,11 @@ import { RELATIONS } from "./relations";
 /**
  * Who is this person to me? Worked out from the conversation itself, for real people and
  * imported chats. How often we talk is counted in plain code (see rhythmDays in store.ts).
- * A relation the user has set by hand is never overwritten.
+ * A relation the user has set by hand is never overwritten. Equal only names the relation: who
+ * the user cares about, who is family and how often to stay in touch are the user's to say.
  */
 
 export { RELATIONS };
-
-const FAMILY = new Set(["mother", "father", "brother", "sister", "partner", "family", "close friend"]);
 
 const SYSTEM = `You work out how two people are related from their chat. "me" is the user; "them" is the other person, named in NAME.
 Messages may mix English with Hindi or Telugu. Kinship words matter: amma, nanna, anna, akka, tammudu, chelli, bava, mummy, papa, bhaiya, didi, beta, ra, etc.
@@ -37,8 +36,6 @@ export async function learnRelation(db: DB, contact: Contact): Promise<string | 
   contact.relation = relation;
   contact.relationSource = "inferred";
   contact.relationWhy = r.why ?? "";
-  // Close means family, a partner or a close friend, or simply someone I talk to a lot.
-  contact.close = FAMILY.has(relation) || thread.length >= 30;
   return null;
 }
 

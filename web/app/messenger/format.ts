@@ -6,6 +6,8 @@ import type { Snapshot } from "@/lib/snapshot";
 
 export type Suggestion = Snapshot["suggestions"][number];
 export type Contact = Snapshot["contacts"][number];
+/** What the user can say about a person: who they are, whether they are family, how often to stay in touch, and "I called them". */
+export type PersonChange = { relation?: string; close?: boolean; family?: boolean; everyDays?: number | null; logged?: "call" | "met" };
 export type Pane = "chats" | "chat" | "equal";
 export type Msg = Snapshot["messages"][number];
 
