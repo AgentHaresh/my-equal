@@ -3,6 +3,7 @@
 
 import type { Contact, Msg } from "./format";
 import { Avatar } from "./parts";
+import type { ShareItem } from "@/lib/share";
 
 type ForwardProps = { forwarding: Msg; setForwarding: (m: Msg | null) => void; ordered: Contact[]; forwardTo: (contactId: string) => void };
 
@@ -149,6 +150,54 @@ export function RemindSheet({ remindFor, setRemindFor, remindMsg, remindCall, se
             </button>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+type ShareProps = {
+  share: { question: string; items: ShareItem[]; off: string[] };
+  setShare: (s: ShareProps["share"] | null) => void;
+  sendAsk: (question: string, items: ShareItem[]) => void;
+};
+
+/**
+ * Before a question goes to the cloud model with anything from private chats: every line that would be
+ * sent, each one can be left out, and nothing goes until the person taps. "Ask without them" sends only
+ * the question.
+ */
+export function ShareSheet({ share, setShare, sendAsk }: ShareProps) {
+  const chosen = share.items.filter((i) => !share.off.includes(i.key));
+  const toggle = (key: string) => setShare({ ...share, off: share.off.includes(key) ? share.off.filter((k) => k !== key) : [...share.off, key] });
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-equal-ink/60 p-3 sm:items-center" onClick={() => setShare(null)}>
+      <div role="dialog" aria-label="Share private lines for this answer" className="flex max-h-[85vh] w-full max-w-md flex-col rounded-3xl bg-white p-5 text-equal-ink shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="font-display text-2xl text-equal-deep">Use your private chats?</div>
+        <p className="mt-1 text-sm text-equal-ink/80">
+          To answer “{share.question}”, Equal would send these lines from private chats to the cloud model (OpenAI), for this answer only. My Equal&apos;s server does not keep them. Untick anything you&apos;d rather not send.
+        </p>
+        <ul className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto">
+          {share.items.map((i) => (
+            <li key={i.key}>
+              <label className="flex cursor-pointer gap-2 rounded-xl border border-blue-100 px-3 py-2 text-sm">
+                <input type="checkbox" checked={!share.off.includes(i.key)} onChange={() => toggle(i.key)} className="mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold text-equal-ink/60">{i.kind === "note" ? `Noted on this phone · ${i.who}` : `Chat with ${i.who}${i.message ? ` · ${i.message.date}` : ""}`}</span>
+                  <span className="block break-words">{i.line}</span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+        <button disabled={!chosen.length} onClick={() => sendAsk(share.question, chosen)} className="mt-3 w-full rounded-full bg-equal-ink py-2 text-sm font-semibold text-white disabled:opacity-40">
+          Send {chosen.length} {chosen.length === 1 ? "line" : "lines"} and ask
+        </button>
+        <button onClick={() => sendAsk(share.question, [])} className="mt-2 w-full rounded-full border border-blue-200 py-2 text-sm font-semibold text-equal-sky">
+          Ask without them
+        </button>
+        <button onClick={() => setShare(null)} className="mt-1 w-full py-1 text-sm text-equal-ink/60">
+          Cancel
+        </button>
       </div>
     </div>
   );

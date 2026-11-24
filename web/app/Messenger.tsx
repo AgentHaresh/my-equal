@@ -10,7 +10,8 @@ import { Wordmark } from "./messenger/parts";
 import { useCalls } from "./messenger/useCalls";
 import CallOverlay from "./messenger/CallOverlay";
 import ReminderCallOverlay from "./messenger/ReminderCallOverlay";
-import { ForwardSheet, RemindSheet, SendLaterSheet } from "./messenger/Sheets";
+import { ForwardSheet, RemindSheet, SendLaterSheet, ShareSheet } from "./messenger/Sheets";
+import { pickPrivate, toShared, type ShareItem } from "@/lib/share";
 import SettingsMenu from "./messenger/SettingsMenu";
 import ProfileSetup from "./messenger/ProfileSetup";
 import ChatList from "./messenger/ChatList";
@@ -249,7 +250,8 @@ export default function Messenger({ role }: Props) {
   const importText = useRef("");
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
-  const [reply, setReply] = useState<(Answer & { question: string }) | null>(null);
+  const [reply, setReply] = useState<(Answer & { question: string; shared?: number }) | null>(null);
+  const [share, setShare] = useState<{ question: string; items: ShareItem[]; off: string[] } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
   const [recording, setRecording] = useState(false);
@@ -773,11 +775,23 @@ export default function Messenger({ role }: Props) {
   async function askQuestion() {
     const q = question.trim();
     if (!q || asking) return;
+    // The server cannot read private chats. If any private lines (or what this phone learned from them)
+    // fit the question, show them first; only the ones the person approves go with it.
+    if (plainSnap) {
+      const unreadable = (t: string) => t === UNLOCKING || t === ON_OTHER_DEVICE || t === TAMPERED;
+      const items = pickPrivate(q, plainSnap.contacts.filter((c) => !c.owner), plainSnap.messages.filter((m) => m.enc && !unreadable(m.text)), mind?.facts ?? []);
+      if (items.length) return setShare({ question: q, items, off: [] });
+    }
+    await sendAsk(q, []);
+  }
+
+  async function sendAsk(q: string, approved: ShareItem[]) {
+    setShare(null);
     setAsking(true);
     try {
-      const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }) });
+      const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q, shared: approved.length ? toShared(approved) : undefined }) });
       const answer = await res.json();
-      setReply({ ...answer, question: q });
+      setReply({ ...answer, question: q, shared: approved.length || undefined });
       setQuestion("");
       if (answer.remembered || answer.errand) void refresh();
     } finally {
@@ -955,6 +969,7 @@ export default function Messenger({ role }: Props) {
       <audio ref={reminderAudio} className="hidden" />
       {ringing && !callUi && <ReminderCallOverlay {...{ ringing, answerReminder, closeReminder }} />}
       {forwarding && <ForwardSheet {...{ forwarding, setForwarding, ordered, forwardTo }} />}
+      {share && <ShareSheet {...{ share, setShare, sendAsk }} />}
       {laterOpen && <SendLaterSheet {...{ setLaterOpen, draft, sendLater, laterWhen, setLaterWhen, laterError }} />}
       {remindFor && <RemindSheet {...{ remindFor, setRemindFor, remindMsg, remindCall, setRemindCall, setReminder, remindBusy, remindWhen, setRemindWhen }} />}
       <header className={`safe-top items-center justify-between px-4 py-2.5 md:flex md:px-2 md:py-0 ${isMe && pane === "chat" ? "hidden" : "flex"}`}>

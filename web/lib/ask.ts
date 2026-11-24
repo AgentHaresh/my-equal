@@ -2,6 +2,7 @@ import { DB, parseWhen, recordTouch, save, todayIST, uid } from "./store";
 import { notesContact } from "./photo";
 import { askJson, butlerStatus, wordsOf } from "./butler";
 import { createJob } from "./calls";
+import type { Shared } from "./share";
 
 /** The most memories shown to the model for one question. */
 const MEMORY_LIMIT = 80;
@@ -31,7 +32,12 @@ export type Answer = { known: boolean; answer: string; sources: { who: string; f
 
 const CATEGORIES = ["mechanic", "doctor", "pharmacy", "plumber", "electrician", "travel", "other"];
 
-export async function askEqual(db: DB, question: string): Promise<Answer> {
+/**
+ * shared: lines from private chats (and what the phone learned from them) that the person approved
+ * sending for this one question (lib/share.ts). They go to the model with the question and are not
+ * stored: nothing below writes them to the db.
+ */
+export async function askEqual(db: DB, question: string, shared?: Shared): Promise<Answer> {
   if (butlerStatus() !== "online") return { known: false, answer: "", sources: [], error: butlerStatus() };
   const q = question.toLowerCase();
   const words = wordsOf(q).filter((w) => !STOP.has(w));
@@ -40,7 +46,8 @@ export async function askEqual(db: DB, question: string): Promise<Answer> {
   const mentioned = contacts.filter((c) => c.name.toLowerCase().split(/\s+/).some((part) => part.length > 2 && q.includes(part)));
 
   // Messages: everything recent from the people named in the question, plus the best keyword matches.
-  const all = db.messages.filter((m) => m.from !== "butler" && !m.deleted && contacts.some((c) => c.id === m.contactId));
+  // Private (end-to-end encrypted) messages have no text here: the server cannot read them.
+  const all = db.messages.filter((m) => m.from !== "butler" && !m.deleted && !m.enc && contacts.some((c) => c.id === m.contactId));
   const picked = new Map<string, (typeof all)[number]>();
   for (const c of mentioned) for (const m of all.filter((x) => x.contactId === c.id).slice(-20)) picked.set(m.id, m);
   const scored = all
@@ -64,23 +71,31 @@ export async function askEqual(db: DB, question: string): Promise<Answer> {
     .slice(0, MEMORY_LIMIT)
     .sort((a, b) => a.i - b.i);
 
+  // Readable messages, then the approved private ones, numbered together so the answer can cite either.
+  const lines = [
+    ...messages.map((m) => ({ chat_with: name(m.contactId), from: m.from === "me" ? "me" : name(m.contactId), text: m.text.slice(0, 400), date: m.at.slice(0, 10) })),
+    ...(shared?.messages ?? []),
+  ];
   let r: { people?: { person?: string; relation?: string | null; family?: boolean | null; care?: boolean | null; every_days?: number | null; logged?: string | null }[]; known?: boolean; answer?: string; source_ids?: number[]; remember?: { person?: string | null; fact?: string; when?: string | null } | null; errand?: { need?: string; category?: string } | null };
   try {
     r = await askJson(SYSTEM, {
       TODAY: todayIST(),
       QUESTION: question,
       PEOPLE: contacts.filter((c) => !c.unknown && c.id !== "self").map((c) => ({ name: c.name, relation: c.relation, cares_about: c.close, family: Boolean(c.family), every_days: c.everyDays ?? null, last_spoke: c.lastContactAt.slice(0, 10) })),
-      MEMORIES: scoredMemories.map(({ m }) => ({ with: name(m.contactId), about: m.about === "user" ? "the user" : name(m.contactId), fact: m.fact, when: m.when?.slice(0, 16) ?? null, status: m.status })),
-      MESSAGES: messages.map((m, i) => ({ id: i, chat_with: name(m.contactId), from: m.from === "me" ? "me" : name(m.contactId), text: m.text.slice(0, 400), date: m.at.slice(0, 10) })),
+      MEMORIES: [
+        ...scoredMemories.map(({ m }) => ({ with: name(m.contactId), about: m.about === "user" ? "the user" : name(m.contactId), fact: m.fact, when: m.when?.slice(0, 16) ?? null, status: m.status })),
+        ...(shared?.notes ?? []).map((n) => ({ with: n.with, about: n.with, fact: n.fact, when: n.when, status: "open" })),
+      ],
+      MESSAGES: lines.map((m, i) => ({ id: i, ...m })),
     }, "answer_question");
   } catch (e) {
     return { known: false, answer: "", sources: [], error: e instanceof Error ? e.message : String(e) };
   }
   const sources = (Array.isArray(r.source_ids) ? r.source_ids : [])
-    .map((i) => messages[i])
-    .filter(Boolean)
+    .map((i) => (Number.isInteger(i) ? lines[i] : undefined))
+    .filter((m): m is (typeof lines)[number] => Boolean(m))
     .slice(0, 3)
-    .map((m) => ({ who: name(m.contactId), from: m.from === "me" ? "You" : name(m.contactId), text: m.text, at: m.at }));
+    .map((m) => ({ who: m.chat_with, from: m.from === "me" ? "You" : m.from, text: m.text, at: m.date }));
   // The user told Equal something to keep: plain code stores it against the right person.
   let remembered: Answer["remembered"];
   const fact = typeof r.remember?.fact === "string" ? r.remember.fact.trim().slice(0, 200) : "";

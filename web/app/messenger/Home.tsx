@@ -25,7 +25,7 @@ type Props = {
   asking: boolean;
   addPhoto: (file: File) => void;
   askReminder: (target: { id?: string; text: string }) => void;
-  reply: (Answer & { question: string }) | null;
+  reply: (Answer & { question: string; shared?: number }) | null;
   setReply: (reply: null) => void;
   answer: (s: Suggestion, action: "accept" | "dismiss") => void;
   urgent: boolean;
@@ -131,13 +131,14 @@ export default function Home(props: Props) {
         {reply && (
           <div className="rounded-2xl bg-white p-3 text-equal-ink shadow-lg">
             <div className="text-xs text-equal-ink/60">{reply.question}</div>
-            <div className="mt-1 whitespace-pre-wrap text-sm font-medium">{reply.error ? `I could not answer: ${reply.error}` : reply.answer}</div>
+            <div data-testid="answer" className="mt-1 whitespace-pre-wrap text-sm font-medium">{reply.error ? `I could not answer: ${reply.error}` : reply.answer}</div>
             {reply.remembered && <div className="mt-2 rounded-lg bg-equal-lime px-2.5 py-1.5 text-xs font-semibold text-equal-ink">Saved about {reply.remembered.about}: {reply.remembered.fact}</div>}
             {reply.errand && (
               <div className="mt-2 rounded-lg bg-equal-lime px-2.5 py-1.5 text-xs font-semibold text-equal-ink">
                 {reply.errand.already ? "Already calling around" : "Calling around now"}: {reply.errand.need} · see Right now below
               </div>
             )}
+            {reply.shared && <div className="mt-2 text-[11px] text-equal-ink/60">🔒 Used {reply.shared} {reply.shared === 1 ? "line" : "lines"} from private chats that you approved, for this answer only.</div>}
             {reply.sources?.map((src, i) => (
               <div key={i} className="mt-2 border-l-2 border-equal-sky pl-2 text-xs text-equal-ink/70">
                 <span className="font-semibold">
