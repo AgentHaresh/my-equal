@@ -17,6 +17,9 @@ import ChatList from "./messenger/ChatList";
 import Conversation from "./messenger/Conversation";
 import Home from "./messenger/Home";
 import { ON_OTHER_DEVICE, TAMPERED, UNLOCKING, deviceKey, lockFor, unlock, type Device } from "./messenger/privacy";
+import { LOCAL_MODEL_SIZE, canRunLocally, dropDeleted, loadMind, readOne, saveMind, startModel, toRead, type Mind } from "./messenger/localMind";
+import { computeNudges } from "@/lib/nudges";
+import type { DB } from "@/lib/store";
 
 type Props = { role: "me" | "them" };
 
@@ -27,10 +30,23 @@ export default function Messenger({ role }: Props) {
   const [rawSnap, setSnap] = useState<Snapshot | null>(null);
   const [device, setDevice] = useState<Device | null>(null);
   const [plain, setPlain] = useState<Record<string, string>>({});
-  const snap = useMemo(() => {
+  const plainSnap = useMemo(() => {
     if (!rawSnap || !rawSnap.messages.some((m) => m.enc)) return rawSnap;
     return { ...rawSnap, messages: rawSnap.messages.map((m) => (m.enc ? { ...m, text: plain[`${m.id}:${m.enc.iv}`] ?? UNLOCKING } : m)) };
   }, [rawSnap, plain]);
+
+  // What Equal read privately on this device, from encrypted chats. Added to the screen here and nowhere else.
+  const [mind, setMind] = useState<Mind | null>(null);
+  const snap = useMemo(() => {
+    if (!plainSnap || !mind || (!mind.facts.length && !Object.keys(mind.tones).length)) return plainSnap;
+    const messages = plainSnap.messages.map((m) => (mind.tones[m.id] ? { ...m, tone: mind.tones[m.id] } : m));
+    const memories = [...plainSnap.memories, ...mind.facts];
+    // Reminders and nudges are worked out again on the phone, by the same code the server uses, now with what was read here.
+    const computed = new Set(["keep_close", "follow_up", "reminder", "reply", "tone"]);
+    const space = { jobs: [], suggestions: [], gateLog: [], contacts: plainSnap.contacts, messages, memories, touches: plainSnap.touches, dismissed: plainSnap.dismissed } as unknown as DB;
+    const suggestions = [...plainSnap.suggestions.filter((s) => !computed.has(s.type)), ...computeNudges(space)];
+    return { ...plainSnap, messages, memories, suggestions };
+  }, [plainSnap, mind]);
 
   // This device's key: made on first use, kept on the device, and its public half registered so others can write here privately.
   const meId = rawSnap?.me?.id;
@@ -94,6 +110,76 @@ export default function Messenger({ role }: Props) {
     const m = next.messages?.find((x) => x.enc?.iv === iv);
     if (m) setPlain((p) => ({ ...p, [`${m.id}:${iv}`]: text }));
   }
+
+  // Equal on this device: on or off is remembered per account on this browser. The model is downloaded only once it is turned on.
+  const [localChoice, setLocalChoice] = useState<Record<string, boolean>>({});
+  const localOn = Boolean(isMe && meId && (localChoice[meId] ?? (typeof window !== "undefined" && window.localStorage.getItem(`equal-local-${meId}`) === "on")));
+  const [model, setModel] = useState<{ state: "off" | "loading" | "ready" | "error"; text: string }>({ state: "off", text: "" });
+  const minding = useRef(false); // the on-device model is reading right now
+  const starting = useRef(false); // the model is being started
+  useEffect(() => {
+    if (!isMe || !meId) return;
+    void loadMind(meId).then(setMind);
+  }, [isMe, meId]);
+
+  async function setLocalOn(on: boolean) {
+    if (!meId) return;
+    if (on) {
+      const can = await canRunLocally();
+      if (!can.ok) return setModel({ state: "error", text: can.why ?? "This device cannot run the model." });
+    }
+    window.localStorage.setItem(`equal-local-${meId}`, on ? "on" : "off");
+    setLocalChoice((c) => ({ ...c, [meId]: on }));
+    if (!on) {
+      starting.current = false;
+      setModel({ state: "off", text: "" });
+    }
+  }
+
+  // Start the model once it is on and there is something private to read.
+  const hasPrivate = Boolean(rawSnap?.messages.some((m) => m.enc));
+  useEffect(() => {
+    if (!localOn || !hasPrivate || model.state !== "off" || starting.current) return;
+    starting.current = true;
+    startModel((text) => setModel({ state: "loading", text }))
+      .then(() => setModel({ state: "ready", text: "" }))
+      .catch((e) => setModel({ state: "error", text: e instanceof Error ? e.message : "The model could not start." }))
+      .finally(() => {
+        starting.current = false;
+      });
+  }, [localOn, hasPrivate, model.state]);
+
+  // Read new and edited private messages, one at a time, oldest first. Facts from deleted messages go.
+  useEffect(() => {
+    if (model.state !== "ready" || !mind || !meId || !plainSnap || minding.current) return;
+    const unreadable = (t: string) => t === UNLOCKING || t === ON_OTHER_DEVICE || t === TAMPERED;
+    // Work on a copy: what is on screen changes only when a reading is finished and saved.
+    const work: Mind = structuredClone(mind);
+    const changed = dropDeleted(work, plainSnap.messages);
+    const queue = toRead(work, plainSnap.messages, unreadable);
+    if (!queue.length) {
+      if (changed) void saveMind(meId, work).then(() => setMind(work));
+      return;
+    }
+    minding.current = true;
+    void (async () => {
+      try {
+        const engine = await startModel(() => {});
+        for (const msg of queue) {
+          const who = plainSnap.contacts.find((c) => c.id === msg.contactId);
+          if (!who) continue;
+          const thread = plainSnap.messages.filter((m) => m.contactId === msg.contactId && m.from !== "butler" && !m.deleted && m.at < msg.at && !unreadable(m.text));
+          await readOne(work, engine, msg, who, thread);
+          await saveMind(meId, work);
+          setMind(structuredClone(work));
+        }
+      } catch (e) {
+        setModel({ state: "error", text: e instanceof Error ? e.message : "Reading failed." });
+      } finally {
+        minding.current = false;
+      }
+    })();
+  }, [model.state, mind, meId, plainSnap]);
   const [auth, setAuth] = useState<{ checked: boolean; clientId: string; signedIn: boolean }>({ checked: !isMe, clientId: "", signedIn: !isMe });
   const [selected, setSelected] = useState(() => param("c") ?? "");
   // The first screen is the Equal home; a link straight to a chat opens that chat.
@@ -529,6 +615,13 @@ export default function Messenger({ role }: Props) {
   }
 
   async function answer(s: Suggestion, action: "accept" | "dismiss") {
+    // "Done" on a reminder that came from a private chat: it was read on this device, so it is closed here.
+    const local = s.id.startsWith("rm-") && action === "accept" ? mind?.facts.find((f) => f.id === s.id.slice(3)) : undefined;
+    if (local && mind && meId) {
+      const next = { ...mind, facts: mind.facts.map((f) => (f.id === local.id ? { ...f, status: "done" as const } : f)) };
+      await saveMind(meId, next);
+      return setMind(next);
+    }
     const next = await api("/api/suggestions", "POST", { id: s.id, action });
     if (next.contacts) setSnap(next);
     if (action === "accept" && (s.type === "keep_close" || s.type === "follow_up" || s.type === "reply" || s.type === "tone")) open(s.contactId);
@@ -706,6 +799,12 @@ export default function Messenger({ role }: Props) {
   }
 
   async function forget(id: string) {
+    // A fact read on this device lives only here, so it is forgotten here.
+    if (mind && meId && mind.facts.some((f) => f.id === id)) {
+      const next = { ...mind, facts: mind.facts.filter((f) => f.id !== id) };
+      await saveMind(meId, next);
+      return setMind(next);
+    }
     const next = await api("/api/memories", "POST", { id });
     if (next.contacts) setSnap(next);
   }
@@ -825,6 +924,10 @@ export default function Messenger({ role }: Props) {
           <SettingsMenu
             {...{ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut }}
             privacyReady={Boolean(device && me.keyIds.includes(device.pub.id))}
+            localOn={localOn}
+            setLocalOn={setLocalOn}
+            model={model}
+            modelSize={LOCAL_MODEL_SIZE}
             setPrivateMode={async (on: boolean) => {
               const next = await api("/api/keys", "POST", { privateMode: on });
               if (next.contacts) setSnap(next);

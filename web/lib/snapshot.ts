@@ -35,6 +35,8 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
     memories: db.memories,
     suggestions: [...db.suggestions.filter((s) => s.status !== "dismissed"), ...computeNudges(db)],
     gateLog: db.gateLog.slice(-20),
+    // Nudges the user dismissed, so the phone can recompute the same cards after adding what it read privately.
+    dismissed: db.dismissed,
     jobs: db.jobs,
     // Calls and meetings with each person, for their history. Texts are in messages.
     touches: (db.touches ?? []).filter((t) => mine(t.contactId)),
@@ -53,7 +55,7 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
 }
 export type Snapshot = ReturnType<typeof snapshot>;
 
-const bare = { me: null, presence: {}, touches: [], demo: false, call: null, reminderCall: null, scheduled: [], memories: [], suggestions: [], gateLog: [], jobs: [], butler: "online", error: null };
+const bare = { me: null, presence: {}, touches: [], dismissed: [] as string[], demo: false, call: null, reminderCall: null, scheduled: [], memories: [], suggestions: [], gateLog: [], jobs: [], butler: "online", error: null };
 
 /** The other side of a sample chat sees only that one conversation: no notes from Equal, memories, offers or jobs. */
 export function friendSnapshot(db: DB, contactId: string): Snapshot {

@@ -22,9 +22,13 @@ type Props = {
   onEditProfile: () => void;
   privacyReady: boolean;
   setPrivateMode: (on: boolean) => void;
+  localOn: boolean;
+  setLocalOn: (on: boolean) => void;
+  model: { state: "off" | "loading" | "ready" | "error"; text: string };
+  modelSize: string;
 };
 
-export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile, privacyReady, setPrivateMode }: Props) {
+export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile, privacyReady, setPrivateMode, localOn, setLocalOn, model, modelSize }: Props) {
   return (
     <span className="relative">
       <button
@@ -80,6 +84,27 @@ export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush,
                   ? "Lock your texts on your phone so only you and the other person can read them."
                   : "This browser cannot make a private key here."}
             </p>
+            {/* Equal on this device: reads private chats with a model running here. Nothing it reads leaves the device. */}
+            {me.privateMode && (
+              <>
+                <button
+                  onClick={() => setLocalOn(!localOn)}
+                  aria-pressed={localOn}
+                  className={`mt-2 w-full rounded-full px-3 py-1.5 text-sm font-semibold ${localOn ? "bg-equal-lime text-equal-ink" : "border border-blue-200 text-equal-sky"}`}
+                >
+                  {localOn ? "Equal on this device is on" : "Let Equal read private chats here"}
+                </button>
+                <p className="mt-1 text-[11px] leading-snug text-equal-ink/70">
+                  {model.state === "error"
+                    ? model.text
+                    : model.state === "loading"
+                      ? model.text
+                      : localOn
+                        ? "Private chats are read by a model running on this device. What it learns stays here."
+                        : `Downloads a language model once (${modelSize}). It reads your private chats on this device; nothing it reads leaves it.`}
+                </p>
+              </>
+            )}
             <a href="/api/export" download className="mt-2 block rounded-full border border-blue-200 px-3 py-1.5 text-center text-sm font-medium text-equal-sky">
               Export all my chats
             </a>

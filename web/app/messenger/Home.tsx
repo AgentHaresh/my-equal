@@ -308,6 +308,7 @@ export default function Home(props: Props) {
                     <span className="ml-2 text-xs text-white/60">
                       {m.when ? new Date(m.when).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : m.kind}
                       {m.sample ? " · demo" : ""}
+                      {"local" in m && m.local ? " · read on this device" : ""}
                     </span>
                   </div>
                 ))}

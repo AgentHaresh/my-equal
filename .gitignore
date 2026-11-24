@@ -3,3 +3,7 @@
 !.env.example
 *.pem
 __pycache__/
+
+# On-device model benchmark: downloaded weights and local results
+web/eval/.llm-profile/
+web/eval/local-results.json

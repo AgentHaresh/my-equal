@@ -1,0 +1,85 @@
+{
+  "about": "Cases for the on-device reader (lib/local-reader.ts): promises in both directions, tone, finishing a known plan, and small talk. Written by the builder; days are relative to the day the benchmark runs; 'any' entries are case-insensitive regular expressions.",
+  "cases": [
+    {
+      "id": "their-promise-tickets",
+      "contact": { "name": "Bala", "relation": "brother" },
+      "messages": [
+        { "from": "me", "day": 0, "time": "10:00", "text": "Did you book the train for Sankranti?" },
+        { "from": "them", "day": 0, "time": "10:05", "text": "Not yet. I'll book the tickets tomorrow and send you the PDF." }
+      ],
+      "facts": [{ "label": "Bala's promise to book and send the tickets", "any": ["ticket", "pdf"], "about": "contact", "kind": "promise", "day": 1 }],
+      "tone": { "on": 1, "expect": "calm" }
+    },
+    {
+      "id": "my-promise-telugu",
+      "contact": { "name": "Amma", "relation": "mother" },
+      "messages": [
+        { "from": "them", "day": 0, "time": "19:00", "text": "Nanna ki BP ekkuva undi ra, okasari matladu." },
+        { "from": "me", "day": 0, "time": "19:04", "text": "Sare Amma, repu morning Nanna ki call chesta." }
+      ],
+      "facts": [{ "label": "my promise to call Nanna tomorrow", "any": ["call", "nanna", "father"], "about": "user", "kind": "promise", "day": 1 }],
+      "tone": { "on": 0, "expect": "concern" }
+    },
+    {
+      "id": "plan-hindi-time",
+      "contact": { "name": "Rohit", "relation": "friend" },
+      "messages": [
+        { "from": "them", "day": 0, "time": "13:00", "text": "Bhai kal milte hain? Bahut din ho gaye." },
+        { "from": "me", "day": 0, "time": "13:02", "text": "Haan pakka, kal shaam 6 baje Inorbit pe milte hain." }
+      ],
+      "facts": [{ "label": "meeting Rohit tomorrow at 6 pm", "any": ["meet", "inorbit", "rohit"], "about": "user", "day": 1, "time": "18:00" }]
+    },
+    {
+      "id": "tone-low-telugu",
+      "contact": { "name": "Priya", "relation": "sister" },
+      "messages": [
+        { "from": "me", "day": 0, "time": "21:00", "text": "Ela unnav? Interview prep ela undi?" },
+        { "from": "them", "day": 0, "time": "21:20", "text": "Ninna nunchi chala low ga undi Anna. Emi baledu, evariki cheppalo kuda teliyatledu." }
+      ],
+      "facts": [],
+      "tone": { "on": 1, "expect": "concern" }
+    },
+    {
+      "id": "tone-stressed-english",
+      "contact": { "name": "Kiran", "relation": "colleague" },
+      "messages": [
+        { "from": "them", "day": 0, "time": "23:10", "text": "The client moved the demo to Monday and nothing works. I haven't slept properly in three days, I'm freaking out." }
+      ],
+      "facts": [{ "label": "the client demo on Monday", "any": ["demo"], "about": "contact" }],
+      "tone": { "on": 0, "expect": "concern" }
+    },
+    {
+      "id": "tone-ordinary",
+      "contact": { "name": "Ravi", "relation": "close friend" },
+      "messages": [
+        { "from": "me", "day": 0, "time": "18:00", "text": "Reaching in 10 minutes." },
+        { "from": "them", "day": 0, "time": "18:01", "text": "Ok, see you there." }
+      ],
+      "facts": [],
+      "noise": ["see you", "reaching"],
+      "tone": { "on": 1, "expect": "calm" }
+    },
+    {
+      "id": "finished-plan",
+      "contact": { "name": "Ravi", "relation": "close friend" },
+      "known": [{ "id": "k1", "fact": "Send Ravi the project deck", "when": 0 }],
+      "messages": [
+        { "from": "me", "day": 0, "time": "17:00", "text": "Sent you the project deck on mail just now, check it." }
+      ],
+      "facts": [],
+      "resolved": ["k1"]
+    },
+    {
+      "id": "small-talk",
+      "contact": { "name": "Ravi", "relation": "close friend" },
+      "messages": [
+        { "from": "them", "day": 0, "time": "09:00", "text": "Good morning ra" },
+        { "from": "me", "day": 0, "time": "09:01", "text": "Morning! 😊" },
+        { "from": "them", "day": 0, "time": "09:02", "text": "Thanks for yesterday, it was fun" }
+      ],
+      "facts": [],
+      "maxFacts": 0
+    }
+  ]
+}
