@@ -28,9 +28,11 @@ type Props = {
   model: { state: "off" | "loading" | "ready" | "error"; text: string };
   modelSize: string;
   memory: MemoryControls;
+  /** Set only inside the Android app. */
+  phoneCalls?: { allowed: boolean; matched: number; unmatched: number; note: string | null; read: () => void };
 };
 
-export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile, privacyReady, setPrivateMode, localOn, setLocalOn, model, modelSize, memory }: Props) {
+export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile, privacyReady, setPrivateMode, localOn, setLocalOn, model, modelSize, memory, phoneCalls }: Props) {
   return (
     <span className="relative">
       <button
@@ -106,6 +108,20 @@ export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush,
                         : `Downloads a language model once (${modelSize}). It reads your private chats on this device; nothing it reads leaves it.`}
                 </p>
                 {localOn && <MemoryLock m={memory} />}
+              </>
+            )}
+            {/* Android app only: the phone's own call log, matched to people on the phone. Never sent to the server. */}
+            {phoneCalls && (
+              <>
+                <button onClick={phoneCalls.read} className={`mt-2 w-full rounded-full px-3 py-1.5 text-sm font-semibold ${phoneCalls.allowed ? "bg-equal-lime text-equal-ink" : "border border-blue-200 text-equal-sky"}`}>
+                  {phoneCalls.allowed ? "📞 Phone calls are used" : "Use this phone's calls"}
+                </button>
+                <p className="mt-1 text-[11px] leading-snug text-equal-ink/70">
+                  {phoneCalls.note ??
+                    (phoneCalls.allowed
+                      ? `${phoneCalls.matched} calls in the last 90 days matched people here${phoneCalls.unmatched ? `; ${phoneCalls.unmatched} numbers matched nobody` : ""}. They stay on this phone.`
+                      : "So Equal knows when you last spoke to the people who matter. The call log stays on this phone; the server never sees it.")}
+                </p>
               </>
             )}
             <a href="/api/export" download className="mt-2 block rounded-full border border-blue-200 px-3 py-1.5 text-center text-sm font-medium text-equal-sky">

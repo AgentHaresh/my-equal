@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { inApp, nativeGoogleSignIn } from "./native";
 
 type GoogleId = {
   initialize: (o: { client_id: string; callback: (r: { credential: string }) => void }) => void;
@@ -21,9 +22,25 @@ const post = (body: unknown) => fetch("/api/auth", { method: "POST", headers: { 
 export default function SignIn({ clientId, onDone }: { clientId: string; onDone: () => void }) {
   const slot = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  // Inside the Android app Google does not allow its web sign-in, so the phone's own account picker is used.
+  const [app, setApp] = useState(false);
+  useEffect(() => {
+    queueMicrotask(() => setApp(inApp()));
+  }, []);
+
+  async function signInOnPhone() {
+    setError(null);
+    try {
+      const res = await post({ credential: await nativeGoogleSignIn(clientId) });
+      if (res.ok) onDone();
+      else setError((await res.json()).error ?? "Sign-in failed.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign-in failed.");
+    }
+  }
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!clientId || inApp()) return;
     const start = () => {
       if (!window.google || !slot.current) return;
       window.google.accounts.id.initialize({
@@ -62,7 +79,11 @@ export default function SignIn({ clientId, onDone }: { clientId: string; onDone:
       </div>
 
       <div className="glass flex w-full max-w-sm flex-col items-center gap-3 rounded-3xl p-6">
-        {clientId ? (
+        {clientId && app ? (
+          <button onClick={signInOnPhone} className="rounded-full bg-white px-6 py-3 text-base font-semibold text-equal-ink">
+            Continue with Google
+          </button>
+        ) : clientId ? (
           <div ref={slot} className="flex min-h-[44px] justify-center" />
         ) : (
           <p className="text-sm text-white/70">Google sign-in is not set up on this server yet.</p>

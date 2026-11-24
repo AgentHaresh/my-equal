@@ -12,6 +12,9 @@ import CallOverlay from "./messenger/CallOverlay";
 import ReminderCallOverlay from "./messenger/ReminderCallOverlay";
 import { ForwardSheet, RemindSheet, SendLaterSheet, ShareSheet } from "./messenger/Sheets";
 import { pickPrivate, toShared, type ShareItem } from "@/lib/share";
+import { callsToTouches } from "@/lib/phonecalls";
+import type { Touch } from "@/lib/touch";
+import { callLogAllowed, inApp, readCallLog } from "./native";
 import SettingsMenu from "./messenger/SettingsMenu";
 import ProfileSetup from "./messenger/ProfileSetup";
 import ChatList from "./messenger/ChatList";
@@ -39,16 +42,20 @@ export default function Messenger({ role }: Props) {
 
   // What Equal read privately on this device, from encrypted chats. Added to the screen here and nowhere else.
   const [mind, setMind] = useState<Mind | null>(null);
+  // In the Android app: calls from the phone's call log, matched to people here (lib/phonecalls.ts). Kept in memory only.
+  const [phoneTouches, setPhoneTouches] = useState<Touch[]>([]);
   const snap = useMemo(() => {
-    if (!plainSnap || !mind || (!mind.facts.length && !Object.keys(mind.tones).length)) return plainSnap;
-    const messages = plainSnap.messages.map((m) => (mind.tones[m.id] ? { ...m, tone: mind.tones[m.id] } : m));
-    const memories = [...plainSnap.memories, ...mind.facts];
+    const learned = Boolean(mind && (mind.facts.length || Object.keys(mind.tones).length));
+    if (!plainSnap || (!learned && !phoneTouches.length)) return plainSnap;
+    const messages = mind ? plainSnap.messages.map((m) => (mind.tones[m.id] ? { ...m, tone: mind.tones[m.id] } : m)) : plainSnap.messages;
+    const memories = [...plainSnap.memories, ...(mind?.facts ?? [])];
+    const touches = [...plainSnap.touches, ...phoneTouches];
     // Reminders and nudges are worked out again on the phone, by the same code the server uses, now with what was read here.
     const computed = new Set(["keep_close", "follow_up", "reminder", "reply", "tone"]);
-    const space = { jobs: [], suggestions: [], gateLog: [], contacts: plainSnap.contacts, messages, memories, touches: plainSnap.touches, dismissed: plainSnap.dismissed } as unknown as DB;
+    const space = { jobs: [], suggestions: [], gateLog: [], contacts: plainSnap.contacts, messages, memories, touches, dismissed: plainSnap.dismissed } as unknown as DB;
     const suggestions = [...plainSnap.suggestions.filter((s) => !computed.has(s.type)), ...computeNudges(space)];
-    return { ...plainSnap, messages, memories, suggestions };
-  }, [plainSnap, mind]);
+    return { ...plainSnap, messages, memories, touches, suggestions };
+  }, [plainSnap, mind, phoneTouches]);
 
   // This device's key: made on first use, kept on the device, and its public half registered so others can write here privately.
   const meId = rawSnap?.me?.id;
@@ -174,6 +181,28 @@ export default function Messenger({ role }: Props) {
       setModel({ state: "off", text: "" });
     }
   }
+
+  // Phone calls (Android app only). Read when the app opens, if the person has allowed it, and on request.
+  const [calls, setCalls] = useState<{ allowed: boolean; matched: number; unmatched: number; note: string | null }>({ allowed: false, matched: 0, unmatched: 0, note: null });
+  const contactsKey = plainSnap?.contacts.map((c) => c.id + c.name).join("|") ?? "";
+  async function readPhoneCalls() {
+    if (!plainSnap) return;
+    try {
+      const list = await readCallLog(Date.now() - 90 * 86400000);
+      const { touches, unmatched } = callsToTouches(list, plainSnap.contacts.filter((c) => !c.owner));
+      setPhoneTouches(touches);
+      setCalls({ allowed: true, matched: touches.length, unmatched: unmatched.length, note: null });
+    } catch (e) {
+      setCalls((c) => ({ ...c, note: e instanceof Error ? e.message : "Could not read the calls." }));
+    }
+  }
+  useEffect(() => {
+    if (!isMe || !contactsKey || !inApp()) return;
+    void callLogAllowed().then((ok) => {
+      if (ok) void readPhoneCalls();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read again only when the people change
+  }, [isMe, contactsKey]);
 
   // Start the model once it is on and there is something private to read.
   const hasPrivate = Boolean(rawSnap?.messages.some((m) => m.enc));
@@ -983,6 +1012,7 @@ export default function Messenger({ role }: Props) {
             model={model}
             modelSize={LOCAL_MODEL_SIZE}
             memory={memory}
+            phoneCalls={inApp() ? { ...calls, read: () => void readPhoneCalls() } : undefined}
             setPrivateMode={async (on: boolean) => {
               const next = await api("/api/keys", "POST", { privateMode: on });
               if (next.contacts) setSnap(next);
