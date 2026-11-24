@@ -1,4 +1,5 @@
 import { DB, Contact, Message, User, contactFor, findUser, save, spaceOf, uid } from "./store";
+import type { Sealed } from "./e2e";
 import { analyse, askJson, butlerStatus } from "./butler";
 import { checkScam } from "./scam";
 import { dueForLearning, learnRelation } from "./people";
@@ -8,13 +9,16 @@ import { count } from "./metrics";
 /**
  * Sending a message as the signed-in person: store it, deliver a copy to a real recipient,
  * and let each side's own assistant read it. Used for typed messages and for voice notes.
+ *
+ * An end-to-end encrypted message ("enc") arrives with no text. The server stores and relays the
+ * ciphertext and cannot read it, so nothing here reads it either: the phones do that.
  */
-export async function deliver(db: DB, user: User, contact: Contact, text: string, voice?: Message["voice"], replyTo?: string, file?: Message["file"], forwarded?: boolean): Promise<string | null> {
+export async function deliver(db: DB, user: User, contact: Contact, text: string, voice?: Message["voice"], replyTo?: string, file?: Message["file"], forwarded?: boolean, enc?: Sealed): Promise<string | null> {
   const at = new Date().toISOString();
   const pair = uid();
   // A reply must point at a message in this same chat.
   const quoted = replyTo ? db.messages.find((m) => m.id === replyTo && m.contactId === contact.id && m.from !== "butler") : undefined;
-  const msg: Message = { id: uid(), contactId: contact.id, from: "me", text, at, voice, pair, replyTo: quoted?.id, file, forwarded: forwarded || undefined };
+  const msg: Message = { id: uid(), contactId: contact.id, from: "me", text: enc ? "" : text, at, voice, pair, replyTo: quoted?.id, file, forwarded: forwarded || undefined, enc };
   db.messages.push(msg);
   contact.lastContactAt = at;
   count("messages.sent");
@@ -26,16 +30,19 @@ export async function deliver(db: DB, user: User, contact: Contact, text: string
     const me = contactFor(theirs, user);
     // On their side the reply points at their own copy of the quoted message.
     const theirQuoted = quoted?.pair ? theirs.messages.find((m) => m.pair === quoted.pair && m.contactId === me.id) : undefined;
-    const copy: Message = { id: uid(), contactId: me.id, from: "them", text, at, voice, pair, replyTo: theirQuoted?.id, file, forwarded: forwarded || undefined };
+    const copy: Message = { id: uid(), contactId: me.id, from: "them", text: enc ? "" : text, at, voice, pair, replyTo: theirQuoted?.id, file, forwarded: forwarded || undefined, enc };
     theirs.messages.push(copy);
     me.lastContactAt = at;
     // If their app is not open right now, reach them with a notification.
     if (!other.seenAt || Date.now() - Date.parse(other.seenAt) > 4000)
-      notify(other.id, { title: user.name, body: voice ? "Voice note" : text ? text.slice(0, 140) : file ? `Sent ${file.name}` : "New message", tag: `chat-${me.id}`, url: `/?c=${encodeURIComponent(me.id)}` });
+      // A private message's words are not known here, so the notification only says one arrived.
+      notify(other.id, { title: user.name, body: enc ? "New private message" : voice ? "Voice note" : text ? text.slice(0, 140) : file ? `Sent ${file.name}` : "New message", tag: `chat-${me.id}`, url: `/?c=${encodeURIComponent(me.id)}` });
     // Someone they have never written to, and have not said who they are: check for a scam first.
     // A scam is flagged in their chat and they are alerted; its claims are not kept as memories.
     const stranger = me.relationSource !== "user" && !theirs.messages.some((m) => m.contactId === me.id && m.from === "me");
-    if (text && stranger) {
+    if (enc) {
+      // Nothing to read on the server: their phone reads it.
+    } else if (text && stranger) {
       void checkScam(theirs, me, copy)
         .then(() => {
           if (copy.scam) {
@@ -52,7 +59,7 @@ export async function deliver(db: DB, user: User, contact: Contact, text: string
   }
   save(); // the message is stored even if the reading fails
 
-  const error = contact.unknown || !text ? null : await analyse(db, contact, msg);
+  const error = contact.unknown || !text || enc ? null : await analyse(db, contact, msg);
   save();
   return error;
 }

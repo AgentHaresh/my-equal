@@ -6,6 +6,22 @@ import { context, unauthorised } from "@/lib/auth";
 import { snapshot, friendSnapshot } from "@/lib/snapshot";
 import { deleteMessage, editMessage, react } from "@/lib/edit";
 import { allow, clientAddress, tooMany } from "@/lib/ratelimit";
+import { isSealed, type Sealed } from "@/lib/e2e";
+import type { DB, User } from "@/lib/store";
+
+/**
+ * A private (end-to-end encrypted) body is accepted only for a chat with a real person, and only
+ * when its key ids name the sender's and that person's registered keys. Returns the reason if not.
+ */
+function badSeal(db: DB, user: User, contactId: unknown, enc: unknown): string | null {
+  if (!isSealed(enc)) return "That private message is not in the right form.";
+  const contact = db.contacts.find((c) => c.id === contactId);
+  const other = contact?.userId ? findUser(contact.userId) : undefined;
+  if (!other) return "Private messages go only to people on My Equal.";
+  const s = enc as Sealed;
+  if (!user.keys?.some((k) => k.id === s.k) || !other.keys?.some((k) => k.id === s.r)) return "That private message was locked with a key this chat does not know.";
+  return null;
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -15,7 +31,19 @@ export async function POST(request: Request) {
     const source = ctx.db.messages.find((m) => m.id === body.forwardOf && m.from !== "butler" && !m.deleted && !ctx.db.contacts.find((c) => c.id === m.contactId)?.owner);
     const to = ctx.db.contacts.find((c) => c.id === body?.contactId && !c.owner && !c.unknown);
     if (!source || !to) return Response.json({ error: "No such message or chat." }, { status: 404 });
+    // The server cannot read a private message, so it cannot pass it on: the phone forwards it.
+    if (source.enc) return Response.json({ error: "Forward a private message from your phone." }, { status: 400 });
     const error = await deliver(ctx.db, ctx.user, to, source.text, source.voice, undefined, source.file, true);
+    return Response.json(snapshot(ctx.db, ctx.user, error));
+  }
+  // A private message: ciphertext from the phone, with no words for the server.
+  if (body?.enc !== undefined) {
+    const ctx = context(request);
+    if (!ctx) return unauthorised();
+    const problem = badSeal(ctx.db, ctx.user, body?.contactId, body.enc);
+    if (problem) return Response.json({ error: problem }, { status: 400 });
+    const contact = ctx.db.contacts.find((c) => c.id === body.contactId)!;
+    const error = await deliver(ctx.db, ctx.user, contact, "", undefined, typeof body?.replyTo === "string" ? body.replyTo : undefined, undefined, body?.forwarded === true, body.enc);
     return Response.json(snapshot(ctx.db, ctx.user, error));
   }
   const text = typeof body?.text === "string" ? body.text.trim().slice(0, 2000) : "";
@@ -50,7 +78,7 @@ export async function POST(request: Request) {
   const contact = db.contacts.find((c) => c.id === body?.contactId);
   if (!contact) return Response.json({ error: "No such chat." }, { status: 400 });
 
-  const error = await deliver(db, user, contact, text, undefined, typeof body?.replyTo === "string" ? body.replyTo : undefined);
+  const error = await deliver(db, user, contact, text, undefined, typeof body?.replyTo === "string" ? body.replyTo : undefined, undefined, body?.forwarded === true);
   return Response.json(snapshot(db, user, error));
 }
 
@@ -71,6 +99,14 @@ export async function PATCH(request: Request) {
     msg.starred = body.starred || undefined;
     save();
     return Response.json(snapshot(ctx.db, ctx.user));
+  }
+  if (body?.enc !== undefined) {
+    const msg = ctx.db.messages.find((m) => m.id === body?.id);
+    const problem = badSeal(ctx.db, ctx.user, msg?.contactId, body.enc);
+    if (problem) return Response.json({ error: problem }, { status: 400 });
+    const r = await editMessage(ctx.db, String(body?.id ?? ""), "", body.enc);
+    if (!r.ok) return Response.json({ error: r.error }, { status: r.status });
+    return Response.json(snapshot(ctx.db, ctx.user, r.error));
   }
   const text = typeof body?.text === "string" ? body.text.trim().slice(0, 2000) : "";
   if (!text) return Response.json({ error: "text is required" }, { status: 400 });

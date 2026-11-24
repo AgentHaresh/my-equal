@@ -8,6 +8,7 @@ import { REACTIONS, dayLabel, type Contact, type Msg, type Pane, type Suggestion
 import { Avatar } from "./parts";
 
 type Props = {
+  privateChat?: boolean; // texts in this chat are end-to-end encrypted
   role: "me" | "them";
   isMe: boolean;
   show: (p: Pane) => string;
@@ -60,7 +61,7 @@ type Props = {
 export default function Conversation(props: Props) {
   const { role, isMe, show, setPane, unreadTotal, unreadHere, contact, status, side, starPerson, placeCall, thread, now, menuFor, setMenuFor, focusId, inEnglish, setInEnglish, reactTo } = props;
   const { editing, setEditing, replyTo, setReplyTo, startEdit, setForwarding, star, askReminder, removeMessage, quiet, waiting, whenWords, cancelLater, endRef, inlineOffer, answer, notice } = props;
-  const { draft, setDraft, saveEdit, send, sending, attach, toggleVoice, recording, canSchedule, setLaterError, setLaterOpen } = props;
+  const { draft, setDraft, saveEdit, send, sending, attach, toggleVoice, recording, canSchedule, setLaterError, setLaterOpen, privateChat } = props;
   return (
     <main className={`night ${show("chat")} min-w-0 flex-1 flex-col overflow-hidden md:rounded-3xl md:border md:border-white/10 md:shadow-2xl md:shadow-black/40`}>
       <header className="safe-top flex items-center justify-between gap-2 border-b border-blue-100 bg-white px-2 py-2 md:px-4 md:py-3">
@@ -74,7 +75,10 @@ export default function Conversation(props: Props) {
           {contact && <Avatar name={contact.unknown ? "?" : contact.name} picture={contact.picture} tone={contact.unknown ? "bg-blue-100 text-equal-sky" : undefined} />}
           <div className="min-w-0">
             <div className="truncate font-semibold leading-tight">{isMe ? contact?.name ?? "My Equal" : `You are ${contact?.name}`}</div>
-            <div className={`truncate text-xs ${status === "online" ? "font-medium text-emerald-600" : "text-equal-ink/60"}`}>{isMe ? status ?? contact?.relation ?? "Pick a chat to begin" : "Your side of the chat. Equal is not visible here."}</div>
+            <div className={`truncate text-xs ${status === "online" ? "font-medium text-emerald-600" : "text-equal-ink/60"}`}>
+              {privateChat && <span title="Texts here are locked on your phones. The server cannot read them.">🔒 Private · </span>}
+              {isMe ? status ?? contact?.relation ?? "Pick a chat to begin" : "Your side of the chat. Equal is not visible here."}
+            </div>
           </div>
         </div>
         {isMe && contact?.sample && (

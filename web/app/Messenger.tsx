@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Snapshot } from "@/lib/snapshot";
 import type { Answer } from "@/lib/ask";
 import SignIn from "./SignIn";
@@ -16,13 +16,84 @@ import ProfileSetup from "./messenger/ProfileSetup";
 import ChatList from "./messenger/ChatList";
 import Conversation from "./messenger/Conversation";
 import Home from "./messenger/Home";
+import { ON_OTHER_DEVICE, TAMPERED, UNLOCKING, deviceKey, lockFor, unlock, type Device } from "./messenger/privacy";
 
 type Props = { role: "me" | "them" };
 
 export default function Messenger({ role }: Props) {
   const isMe = role === "me";
   const [owner] = useState(() => param("u") ?? ""); // on the link-opened "other side", whose account the chat belongs to
-  const [snap, setSnap] = useState<Snapshot | null>(null);
+  // What the server sent. Private messages arrive locked; "snap" below is the same with them unlocked on this device.
+  const [rawSnap, setSnap] = useState<Snapshot | null>(null);
+  const [device, setDevice] = useState<Device | null>(null);
+  const [plain, setPlain] = useState<Record<string, string>>({});
+  const snap = useMemo(() => {
+    if (!rawSnap || !rawSnap.messages.some((m) => m.enc)) return rawSnap;
+    return { ...rawSnap, messages: rawSnap.messages.map((m) => (m.enc ? { ...m, text: plain[`${m.id}:${m.enc.iv}`] ?? UNLOCKING } : m)) };
+  }, [rawSnap, plain]);
+
+  // This device's key: made on first use, kept on the device, and its public half registered so others can write here privately.
+  const meId = rawSnap?.me?.id;
+  const keyIds = rawSnap?.me?.keyIds?.join(",") ?? "";
+  useEffect(() => {
+    if (!isMe || !meId) return;
+    const pending = deviceKey(meId);
+    if (!pending) return;
+    let live = true;
+    void pending.then(async (d) => {
+      if (!live) return;
+      setDevice(d);
+      if (keyIds.split(",").includes(d.pub.id)) return;
+      const res = await fetch("/api/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: d.pub }) });
+      const next = await res.json();
+      if (live && next.contacts) setSnap(next);
+    });
+    return () => {
+      live = false;
+    };
+  }, [isMe, meId, keyIds]);
+
+  // Unlock private messages on this device. Nothing unlocked is ever sent back to the server.
+  useEffect(() => {
+    if (!device || !rawSnap) return;
+    const todo = rawSnap.messages.filter((m) => m.enc && !(`${m.id}:${m.enc.iv}` in plain));
+    if (!todo.length) return;
+    let live = true;
+    void Promise.all(
+      todo.map(async (m) => {
+        const peer = rawSnap.contacts.find((c) => c.id === m.contactId)?.peer;
+        let text: string;
+        try {
+          text = (await unlock(device, m.enc!, m.from === "me", peer?.keys ?? [])) ?? ON_OTHER_DEVICE;
+        } catch {
+          text = TAMPERED;
+        }
+        return [`${m.id}:${m.enc!.iv}`, text] as const;
+      })
+    ).then((pairs) => {
+      if (live) setPlain((p) => ({ ...p, ...Object.fromEntries(pairs) }));
+    });
+    return () => {
+      live = false;
+    };
+  }, [device, rawSnap, plain]);
+
+  /**
+   * The other person's newest public key, if this chat is private: both of us have a key, and
+   * either of us turned private chats on. Null for sample chats and for anyone not on My Equal.
+   */
+  function privatePeer(contactId: string) {
+    const c = rawSnap?.contacts.find((x) => x.id === contactId);
+    const key = c?.peer?.keys[c.peer.keys.length - 1];
+    if (!isMe || !device || !key || !rawSnap?.me?.keyIds.includes(device.pub.id)) return null;
+    return rawSnap.me.privateMode || c?.peer?.privateMode ? key : null;
+  }
+
+  /** Remember what I just locked, so my own message shows at once without unlocking it again. */
+  function keepPlain(next: Snapshot, iv: string, text: string) {
+    const m = next.messages?.find((x) => x.enc?.iv === iv);
+    if (m) setPlain((p) => ({ ...p, [`${m.id}:${iv}`]: text }));
+  }
   const [auth, setAuth] = useState<{ checked: boolean; clientId: string; signedIn: boolean }>({ checked: !isMe, clientId: "", signedIn: !isMe });
   const [selected, setSelected] = useState(() => param("c") ?? "");
   // The first screen is the Equal home; a link straight to a chat opens that chat.
@@ -230,7 +301,12 @@ export default function Messenger({ role }: Props) {
     setSending(true);
     busy.current = true;
     try {
-      const next = await api("/api/messages", "PATCH", { id, text });
+      const original = rawSnap?.messages.find((m) => m.id === id);
+      const peer = original?.enc ? privatePeer(original.contactId) : null;
+      if (original?.enc && !peer) throw new Error("locked");
+      const enc = peer && device ? await lockFor(device, peer, text) : undefined;
+      const next = await api("/api/messages", "PATCH", enc ? { id, enc } : { id, text });
+      if (next.contacts && enc) keepPlain(next, enc.iv, text);
       if (next.contacts) setSnap(next);
       setNotice(next.contacts ? (next.error ? `Saved. Equal could not read it: ${next.error}` : null) : next.error ?? "Could not save the change.");
       setEditing(null);
@@ -281,7 +357,14 @@ export default function Messenger({ role }: Props) {
     const m = forwarding;
     if (!m) return;
     setForwarding(null);
-    const next = await api("/api/messages", "POST", { forwardOf: m.id, contactId });
+    // A private message is unlocked here and sent on from the phone: the server cannot read it to pass it on.
+    let body: Record<string, unknown> = { forwardOf: m.id, contactId };
+    if (m.enc) {
+      if (m.text === UNLOCKING || m.text === ON_OTHER_DEVICE || m.text === TAMPERED) return setNotice("This private message cannot be read on this device, so it cannot be forwarded.");
+      const peer = privatePeer(contactId);
+      body = peer && device ? { contactId, enc: await lockFor(device, peer, m.text), forwarded: true } : { contactId, text: m.text, forwarded: true };
+    }
+    const next = await api("/api/messages", "POST", body);
     if (next.contacts) {
       setSnap(next);
       open(contactId);
@@ -337,7 +420,9 @@ export default function Messenger({ role }: Props) {
     const text = draft.trim();
     if (!text || !current) return;
     setLaterError(null);
-    const next = await api("/api/scheduled", "POST", { action: "set", contactId: current, text, when });
+    const peer = privatePeer(current);
+    const enc = peer && device ? await lockFor(device, peer, text) : undefined;
+    const next = await api("/api/scheduled", "POST", enc ? { action: "set", contactId: current, enc, when } : { action: "set", contactId: current, text, when });
     if (!next.contacts) return setLaterError(next.error ?? "Could not schedule it.");
     setSnap(next);
     setDraft("");
@@ -427,7 +512,11 @@ export default function Messenger({ role }: Props) {
     const pending = { id: `pending-${Date.now()}`, contactId: current, from: role, text, at: new Date().toISOString(), replyTo: answering };
     setSnap((s) => (s ? { ...s, messages: [...s.messages, pending] } : s));
     try {
-      const next = await api("/api/messages", "POST", { contactId: current, from: role, text, u: owner, replyTo: answering });
+      // In a private chat the words are locked on this phone before they leave it.
+      const peer = privatePeer(current);
+      const enc = peer && device ? await lockFor(device, peer, text) : undefined;
+      const next = await api("/api/messages", "POST", enc ? { contactId: current, enc, replyTo: answering } : { contactId: current, from: role, text, u: owner, replyTo: answering });
+      if (next.contacts && enc) keepPlain(next, enc.iv, text);
       if (next.contacts) setSnap(next);
       setNotice(next.error && isMe ? `Message sent. Equal could not read it: ${next.error}` : null);
     } catch {
@@ -735,6 +824,12 @@ export default function Messenger({ role }: Props) {
         {isMe && me ? (
           <SettingsMenu
             {...{ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut }}
+            privacyReady={Boolean(device && me.keyIds.includes(device.pub.id))}
+            setPrivateMode={async (on: boolean) => {
+              const next = await api("/api/keys", "POST", { privateMode: on });
+              if (next.contacts) setSnap(next);
+              else setNotice(next.error ?? "Could not change that.");
+            }}
             onEditProfile={() => {
               setSettingsOpen(false);
               setEditingProfile(true);
@@ -757,6 +852,7 @@ export default function Messenger({ role }: Props) {
           {...{ role, isMe, show, setPane, unreadTotal, unreadHere, contact, status, side, starPerson, placeCall, thread, now, menuFor, setMenuFor, focusId, inEnglish, setInEnglish, reactTo }}
           {...{ editing, setEditing, replyTo, setReplyTo, startEdit, setForwarding, star, askReminder, removeMessage, quiet, waiting, whenWords, cancelLater, endRef, inlineOffer, answer, notice }}
           {...{ draft, setDraft, saveEdit, send, sending, attach, toggleVoice, recording, canSchedule, setLaterError, setLaterOpen }}
+          privateChat={Boolean(current && privatePeer(current))}
         />
 
         {isMe && (

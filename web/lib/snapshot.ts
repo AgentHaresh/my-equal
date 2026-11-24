@@ -3,8 +3,16 @@ import { butlerStatus } from "./butler";
 import { currentCall } from "./rtc";
 import { dueReminderCall } from "./remind";
 import { scheduledOf } from "./scheduled";
+import type { PublicKey } from "./e2e";
 
 type Person = { id: string; name: string; picture?: string };
+type Peer = { keys: PublicKey[]; privateMode: boolean };
+
+/** The public half of another person's encryption setup. Public keys are meant to be shared. */
+function peerOf(userId: string): Peer {
+  const u = root().users.find((x) => x.id === userId);
+  return { keys: u?.keys ?? [], privateMode: Boolean(u?.privateMode) };
+}
 
 /** "online" while their app is checking in; otherwise when they were last here, to the minute, so it does not change every second. */
 function presenceOf(seenAt: string | undefined): string | null {
@@ -19,9 +27,10 @@ export function snapshot(db: DB, user: User | null, error?: string | null) {
   const replied = new Set(db.messages.filter((m) => m.from === "them").map((m) => m.contactId));
   const mine = (contactId: string) => !db.contacts.find((c) => c.id === contactId)?.owner;
   return {
-    me: user ? ({ id: user.id, name: user.name, email: user.email, phone: user.phone, username: user.username, picture: user.picture, about: user.about, needsSetup: (!user.profileSetAt || !user.username) && !user.test, profileReady: Boolean(user.profileSetAt) } as Person & { email: string; phone?: string; username?: string; about?: string; needsSetup: boolean; profileReady: boolean }) : null,
+    me: user ? ({ id: user.id, name: user.name, email: user.email, phone: user.phone, username: user.username, picture: user.picture, about: user.about, needsSetup: (!user.profileSetAt || !user.username) && !user.test, profileReady: Boolean(user.profileSetAt), keyIds: (user.keys ?? []).map((k) => k.id), privateMode: Boolean(user.privateMode) } as Person & { email: string; phone?: string; username?: string; about?: string; needsSetup: boolean; profileReady: boolean; keyIds: string[]; privateMode: boolean }) : null,
     // Threads on a protected family member's phone are theirs, not the user's.
-    contacts: db.contacts.filter((c) => !c.owner),
+    // Real people carry their public keys, so my phone can write to them privately.
+    contacts: db.contacts.filter((c) => !c.owner).map((c) => (c.userId ? { ...c, peer: peerOf(c.userId) } : c)) as (DB["contacts"][number] & { peer?: Peer })[],
     messages: db.messages.filter((m) => mine(m.contactId)),
     memories: db.memories,
     suggestions: [...db.suggestions.filter((s) => s.status !== "dismissed"), ...computeNudges(db)],

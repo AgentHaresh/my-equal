@@ -20,9 +20,11 @@ type Props = {
   snap: Snapshot;
   signOut: () => void;
   onEditProfile: () => void;
+  privacyReady: boolean;
+  setPrivateMode: (on: boolean) => void;
 };
 
-export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile }: Props) {
+export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile, privacyReady, setPrivateMode }: Props) {
   return (
     <span className="relative">
       <button
@@ -62,6 +64,22 @@ export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush,
               {pushOn ? "Notifications are on" : "Turn on notifications"}
             </button>
             {pushNote && <p className="mt-1 text-[11px] leading-snug text-equal-ink/70">{pushNote}</p>}
+            {/* End-to-end encryption. In beta while Equal learns to read private chats on the phone itself. */}
+            <button
+              onClick={() => setPrivateMode(!me.privateMode)}
+              disabled={!privacyReady}
+              aria-pressed={me.privateMode}
+              className={`mt-2 w-full rounded-full px-3 py-1.5 text-sm font-semibold disabled:opacity-40 ${me.privateMode ? "bg-equal-lime text-equal-ink" : "border border-blue-200 text-equal-sky"}`}
+            >
+              {me.privateMode ? "🔒 Private chats are on" : "Turn on private chats (beta)"}
+            </button>
+            <p className="mt-1 text-[11px] leading-snug text-equal-ink/70">
+              {me.privateMode
+                ? "Your texts with people on My Equal are locked on your phone. The server cannot read them, and for now Equal cannot either. Photos, files and voice notes are not locked yet."
+                : privacyReady
+                  ? "Lock your texts on your phone so only you and the other person can read them."
+                  : "This browser cannot make a private key here."}
+            </p>
             <a href="/api/export" download className="mt-2 block rounded-full border border-blue-200 px-3 py-1.5 text-center text-sm font-medium text-equal-sky">
               Export all my chats
             </a>

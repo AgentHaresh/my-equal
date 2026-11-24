@@ -5,6 +5,7 @@ import { loadEverything, saveEverything, storageInfo } from "./storage";
 import { errorText, log } from "./log";
 import { count, timing } from "./metrics";
 import { CONCERN, ago, daysSince, inTouch, lastPhrase, type Touch } from "./touch";
+import type { PublicKey, Sealed } from "./e2e";
 
 export type Contact = {
   id: string;
@@ -43,6 +44,7 @@ export type Message = {
   forwarded?: boolean; // passed on from another chat
   pair?: string; // shared by the two copies of a message between real people, so an edit reaches both
   tone?: { mood: string; note: string }; // how a message from them sounded, as Equal read it; private to me
+  enc?: Sealed; // end-to-end encrypted: "text" is empty and only the two phones can read this
 };
 export type Memory = {
   id: string;
@@ -130,6 +132,8 @@ export type User = {
   profileSetAt?: string; // when they set up their profile; until then the app asks them to
   test?: boolean; // created by the automated tests; never shown to real people
   seenAt?: string; // when their app last checked in; kept in memory, written with the next save
+  keys?: PublicKey[]; // public keys of their devices, oldest first; the private keys never leave the device
+  privateMode?: boolean; // they chose end-to-end encrypted chats
 };
 /** One person's private space: their chats, what Equal remembers for them, and its offers. */
 export type DB = {

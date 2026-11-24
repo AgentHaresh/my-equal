@@ -1,4 +1,5 @@
 import { DB, Message, root, save } from "./store";
+import type { Sealed } from "./e2e";
 import { analyse } from "./butler";
 import { dropFileIfUnused } from "./files";
 
@@ -27,17 +28,20 @@ function unlearn(space: DB, messageId: string) {
 
 type Edited = { ok: true; error: string | null } | { ok: false; status: number; error: string };
 
-export async function editMessage(db: DB, id: string, text: string): Promise<Edited> {
+export async function editMessage(db: DB, id: string, text: string, enc?: Sealed): Promise<Edited> {
   const msg = db.messages.find((m) => m.id === id);
   if (!msg || msg.deleted) return { ok: false, status: 404, error: "No such message." };
   if (msg.from !== "me") return { ok: false, status: 403, error: "You can only edit your own messages." };
   if (msg.voice) return { ok: false, status: 400, error: "A voice note cannot be edited." };
   if (msg.file && !msg.text) return { ok: false, status: 400, error: "A file with no caption has no words to edit." };
-  if (msg.text === text) return { ok: true, error: null };
+  // A private message is changed to new ciphertext, never to words the server could read.
+  if (Boolean(msg.enc) !== Boolean(enc)) return { ok: false, status: 400, error: msg.enc ? "Edit a private message from your phone." : "This message is not private." };
+  if (!enc && msg.text === text) return { ok: true, error: null };
 
   const at = new Date().toISOString();
   const change = (space: DB, m: Message) => {
-    m.text = text;
+    m.text = enc ? "" : text;
+    if (enc) m.enc = enc;
     m.editedAt = at;
     unlearn(space, m.id);
   };
@@ -47,11 +51,11 @@ export async function editMessage(db: DB, id: string, text: string): Promise<Edi
     change(other.space, other.copy);
     const theirContact = other.space.contacts.find((c) => c.id === other.copy.contactId);
     // Their Equal reads the new words too. An edit never raises a fresh offer.
-    if (theirContact) void analyse(other.space, theirContact, other.copy, true).then(() => save());
+    if (theirContact && !enc) void analyse(other.space, theirContact, other.copy, true).then(() => save());
   }
   save();
   const contact = db.contacts.find((c) => c.id === msg.contactId);
-  const error = contact && !contact.unknown ? await analyse(db, contact, msg, true) : null;
+  const error = contact && !contact.unknown && !enc ? await analyse(db, contact, msg, true) : null;
   save();
   return { ok: true, error };
 }

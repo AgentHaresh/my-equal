@@ -1,4 +1,5 @@
 import { DB, computeNudges, findUser, root, save, uid } from "./store";
+import type { Sealed } from "./e2e";
 import { deliver } from "./deliver";
 import { notify } from "./push";
 import { errorText, log } from "./log";
@@ -12,7 +13,7 @@ import { count } from "./metrics";
  * A timer on the server sends what is due, so the sender does not need the app open.
  */
 
-export type Scheduled = { id: string; contactId: string; text: string; at: string; createdAt: string };
+export type Scheduled = { id: string; contactId: string; text: string; at: string; createdAt: string; enc?: Sealed };
 type Space = DB & { scheduled?: Scheduled[] };
 
 const MAX_WAITING = 50;
@@ -21,7 +22,7 @@ export function scheduledOf(db: DB): Scheduled[] {
   return (db as Space).scheduled ?? [];
 }
 
-export function schedule(db: DB, contactId: string, text: string, when: string): Scheduled | { error: string } {
+export function schedule(db: DB, contactId: string, text: string, when: string, enc?: Sealed): Scheduled | { error: string } {
   const t = Date.parse(when);
   // The time comes from the sender's own clock, which can be a little off from the server's.
   // Anything up to a minute "ago" is treated as now; only a clearly past time is refused.
@@ -31,7 +32,8 @@ export function schedule(db: DB, contactId: string, text: string, when: string):
   if (!contact) return { error: "No such chat." };
   const list = ((db as Space).scheduled ??= []);
   if (list.length >= MAX_WAITING) return { error: "Too many messages are already waiting to be sent." };
-  const item: Scheduled = { id: uid(), contactId, text, at: new Date(t).toISOString(), createdAt: new Date().toISOString() };
+  if (enc && !contact.userId) return { error: "Private messages go only to people on My Equal." };
+  const item: Scheduled = { id: uid(), contactId, text: enc ? "" : text, at: new Date(t).toISOString(), createdAt: new Date().toISOString(), enc };
   list.push(item);
   save();
   startScheduler();
@@ -60,7 +62,7 @@ export function sendDue(now = Date.now()) {
     for (const s of due.sort((a, b) => a.at.localeCompare(b.at))) {
       const contact = db.contacts.find((c) => c.id === s.contactId);
       count("scheduled.sent");
-      if (user && contact) void deliver(db, user, contact, s.text).catch((e) => log.error("scheduled.send_failed", { error: errorText(e) }));
+      if (user && contact) void deliver(db, user, contact, s.text, undefined, undefined, undefined, undefined, s.enc).catch((e) => log.error("scheduled.send_failed", { error: errorText(e) }));
     }
   }
 }
