@@ -9,11 +9,14 @@
 //    Every fact keeps the id of the message it came from: when that message is edited it is read again,
 //    and when it is deleted its facts go.
 //
-// Not yet: this memory is not encrypted at rest beyond what the browser itself provides.
+//  - Once the person locks it, the memory is sealed with a key that only their passkey or recovery code
+//    opens (lib/vault.ts). While it is locked nothing is read or kept; messages wait until it is unlocked.
 import type { MLCEngineInterface } from "@mlc-ai/web-llm";
 import { readLocally, type ChatLine, type Generate } from "@/lib/local-reader";
 import { parseWhen } from "@/lib/nudges";
 import type { Memory } from "@/lib/store";
+import { makeVault, newRecoveryCode, openJson, openWithCode, openWithPasskey, sealJson, unb64, type Box, type Vault } from "@/lib/vault";
+import { makePasskey, passkeySecret } from "./passkey";
 
 /** The model Equal runs on this device. Chosen by the benchmark in eval/local-cases.json. */
 export const LOCAL_MODEL = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
@@ -29,7 +32,7 @@ export type Mind = {
 
 const empty = (): Mind => ({ facts: [], tones: {}, read: {} });
 
-// ---------- storage: one record per account in IndexedDB
+// ---------- storage: one record per account in IndexedDB, sealed once the person locks it (lib/vault.ts)
 
 function idb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -40,23 +43,102 @@ function idb(): Promise<IDBDatabase> {
   });
 }
 
-export async function loadMind(userId: string): Promise<Mind> {
+async function get<T>(key: string): Promise<T | undefined> {
   const db = await idb();
   return new Promise((resolve, reject) => {
-    const req = db.transaction("mind").objectStore("mind").get(userId);
-    req.onsuccess = () => resolve({ ...empty(), ...((req.result as Mind | undefined) ?? {}) });
+    const req = db.transaction("mind").objectStore("mind").get(key);
+    req.onsuccess = () => resolve(req.result as T | undefined);
     req.onerror = () => reject(req.error);
   });
 }
 
-export async function saveMind(userId: string, mind: Mind): Promise<void> {
+async function put(entries: [string, unknown][], remove: string[] = []): Promise<void> {
   const db = await idb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("mind", "readwrite");
-    tx.objectStore("mind").put(mind, userId);
+    for (const [k, v] of entries) tx.objectStore("mind").put(v, k);
+    for (const k of remove) tx.objectStore("mind").delete(k);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+type Stored = Mind | { sealed: Box };
+const vaultKey = (userId: string) => `vault:${userId}`;
+/** Memory keys of unlocked accounts. Held only in this page's memory, and not exportable. */
+const keys = new Map<string, CryptoKey>();
+
+export type MindLock = { locked: boolean; passkey: boolean } | null; // null: no lock set up
+
+export async function lockState(userId: string): Promise<MindLock> {
+  const v = await get<Vault>(vaultKey(userId));
+  return v ? { locked: !keys.has(userId), passkey: Boolean(v.passkey) } : null;
+}
+
+/** The memory, or null while it is locked. */
+export async function loadMind(userId: string): Promise<Mind | null> {
+  const stored = await get<Stored>(userId);
+  if (stored && "sealed" in stored) {
+    const key = keys.get(userId);
+    if (!key) return null;
+    return { ...empty(), ...(await openJson<Mind>(key, stored.sealed)) };
+  }
+  if (!stored && (await get<Vault>(vaultKey(userId))) && !keys.has(userId)) return null;
+  return { ...empty(), ...((stored as Mind | undefined) ?? {}) };
+}
+
+export async function saveMind(userId: string, mind: Mind): Promise<void> {
+  const key = keys.get(userId);
+  if (key) return put([[userId, { sealed: await sealJson(key, mind) }]]);
+  if (await get<Vault>(vaultKey(userId))) throw new Error("Equal's memory on this device is locked.");
+  return put([[userId, mind]]);
+}
+
+/**
+ * Lock Equal's memory on this device: a passkey if the device can make one, and always a recovery code.
+ * What is already remembered is sealed in the same step. Returns the code, to show once.
+ */
+export async function lockMind(userId: string, name: string): Promise<{ code: string; passkey: boolean }> {
+  const current = await loadMind(userId);
+  if (!current) throw new Error("Unlock Equal's memory first.");
+  const pk = await makePasskey(userId, name).catch(() => null);
+  const code = newRecoveryCode();
+  const { vault, key } = await makeVault(code, pk ?? undefined);
+  await put([
+    [vaultKey(userId), vault],
+    [userId, { sealed: await sealJson(key, current) }],
+  ]);
+  keys.set(userId, key);
+  return { code, passkey: Boolean(pk) };
+}
+
+/** Unlock with the passkey (no code given) or with the recovery code. Throws if it does not open. */
+export async function unlockMind(userId: string, code?: string): Promise<void> {
+  const vault = await get<Vault>(vaultKey(userId));
+  if (!vault) return;
+  let key: CryptoKey;
+  if (code !== undefined) {
+    key = await openWithCode(vault, code).catch(() => {
+      throw new Error("That recovery code does not open it.");
+    });
+  } else {
+    if (!vault.passkey) throw new Error("No passkey locks this memory; use the recovery code.");
+    key = await openWithPasskey(vault, await passkeySecret(vault.passkey.credentialId, unb64(vault.passkey.salt))).catch((e) => {
+      throw new Error(e instanceof Error && e.name === "NotAllowedError" ? "The passkey was not used." : "The passkey did not open it.");
+    });
+  }
+  keys.set(userId, key);
+}
+
+/** Lock again now: the key is dropped from memory. */
+export function relockMind(userId: string): void {
+  keys.delete(userId);
+}
+
+/** Forget everything Equal learned on this device, and its lock. Private chats are read again from the start. */
+export async function forgetMind(userId: string): Promise<void> {
+  keys.delete(userId);
+  await put([], [userId, vaultKey(userId)]);
 }
 
 // ---------- the model

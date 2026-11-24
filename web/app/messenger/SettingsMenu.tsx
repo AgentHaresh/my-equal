@@ -4,6 +4,7 @@
 import type { Snapshot } from "@/lib/snapshot";
 import { GearIcon } from "../Icons";
 import { label } from "./format";
+import MemoryLock, { type MemoryControls } from "./MemoryLock";
 
 type Props = {
   settingsOpen: boolean;
@@ -26,9 +27,10 @@ type Props = {
   setLocalOn: (on: boolean) => void;
   model: { state: "off" | "loading" | "ready" | "error"; text: string };
   modelSize: string;
+  memory: MemoryControls;
 };
 
-export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile, privacyReady, setPrivateMode, localOn, setLocalOn, model, modelSize }: Props) {
+export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush, me, light, setLight, setPushNote, togglePush, pushOn, pushNote, setDemo, snap, signOut, onEditProfile, privacyReady, setPrivateMode, localOn, setLocalOn, model, modelSize, memory }: Props) {
   return (
     <span className="relative">
       <button
@@ -103,6 +105,7 @@ export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush,
                         ? "Private chats are read by a model running on this device. What it learns stays here."
                         : `Downloads a language model once (${modelSize}). It reads your private chats on this device; nothing it reads leaves it.`}
                 </p>
+                {localOn && <MemoryLock m={memory} />}
               </>
             )}
             <a href="/api/export" download className="mt-2 block rounded-full border border-blue-200 px-3 py-1.5 text-center text-sm font-medium text-equal-sky">

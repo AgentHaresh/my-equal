@@ -17,7 +17,8 @@ import ChatList from "./messenger/ChatList";
 import Conversation from "./messenger/Conversation";
 import Home from "./messenger/Home";
 import { ON_OTHER_DEVICE, TAMPERED, UNLOCKING, deviceKey, lockFor, unlock, type Device } from "./messenger/privacy";
-import { LOCAL_MODEL_SIZE, canRunLocally, dropDeleted, loadMind, readOne, saveMind, startModel, toRead, type Mind } from "./messenger/localMind";
+import { LOCAL_MODEL_SIZE, canRunLocally, dropDeleted, forgetMind, loadMind, lockMind, lockState, readOne, relockMind, saveMind, startModel, toRead, unlockMind, type Mind, type MindLock } from "./messenger/localMind";
+import type { MemoryControls } from "./messenger/MemoryLock";
 import { computeNudges } from "@/lib/nudges";
 import type { DB } from "@/lib/store";
 
@@ -117,10 +118,47 @@ export default function Messenger({ role }: Props) {
   const [model, setModel] = useState<{ state: "off" | "loading" | "ready" | "error"; text: string }>({ state: "off", text: "" });
   const minding = useRef(false); // the on-device model is reading right now
   const starting = useRef(false); // the model is being started
+  // The lock on that memory (lib/vault.ts). While it is locked, mind is null and nothing is read or kept.
+  const [mindLock, setMindLock] = useState<MindLock>(null);
+  const [lockCode, setLockCode] = useState<string | null>(null);
+  const [lockBusy, setLockBusy] = useState(false);
+  const [lockNote, setLockNote] = useState<string | null>(null);
+  async function refreshMind(id: string) {
+    setMindLock(await lockState(id));
+    setMind(await loadMind(id));
+  }
   useEffect(() => {
     if (!isMe || !meId) return;
+    void lockState(meId).then(setMindLock);
     void loadMind(meId).then(setMind);
   }, [isMe, meId]);
+  async function lockStep(step: () => Promise<void>) {
+    if (!meId) return;
+    setLockBusy(true);
+    setLockNote(null);
+    try {
+      await step();
+      await refreshMind(meId);
+    } catch (e) {
+      setLockNote(e instanceof Error ? e.message : "That did not work.");
+    } finally {
+      setLockBusy(false);
+    }
+  }
+  const memory: MemoryControls = {
+    lock: mindLock,
+    code: lockCode,
+    codeSaved: () => setLockCode(null),
+    busy: lockBusy,
+    note: lockNote,
+    setUp: () => void lockStep(async () => setLockCode((await lockMind(meId!, rawSnap?.me?.name || "Me")).code)),
+    unlock: (code?: string) => void lockStep(() => unlockMind(meId!, code)),
+    relock: () =>
+      void lockStep(async () => {
+        relockMind(meId!);
+      }),
+    forget: () => void lockStep(() => forgetMind(meId!)),
+  };
 
   async function setLocalOn(on: boolean) {
     if (!meId) return;
@@ -171,10 +209,11 @@ export default function Messenger({ role }: Props) {
           const thread = plainSnap.messages.filter((m) => m.contactId === msg.contactId && m.from !== "butler" && !m.deleted && m.at < msg.at && !unreadable(m.text));
           await readOne(work, engine, msg, who, thread);
           await saveMind(meId, work);
-          setMind(structuredClone(work));
+          setMind((prev) => (prev ? structuredClone(work) : prev)); // stays hidden if it was locked meanwhile
         }
       } catch (e) {
-        setModel({ state: "error", text: e instanceof Error ? e.message : "Reading failed." });
+        // Locked again while reading: the rest waits until it is unlocked. Anything else is a real failure.
+        if (!(e instanceof Error && /is locked/.test(e.message))) setModel({ state: "error", text: e instanceof Error ? e.message : "Reading failed." });
       } finally {
         minding.current = false;
       }
@@ -928,6 +967,7 @@ export default function Messenger({ role }: Props) {
             setLocalOn={setLocalOn}
             model={model}
             modelSize={LOCAL_MODEL_SIZE}
+            memory={memory}
             setPrivateMode={async (on: boolean) => {
               const next = await api("/api/keys", "POST", { privateMode: on });
               if (next.contacts) setSnap(next);
