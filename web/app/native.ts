@@ -26,3 +26,34 @@ export const nativeGoogleSignIn = async (clientId: string) => (await plugin().go
 /** Calls since a time, from the phone's call log. Asks for permission the first time. */
 export const readCallLog = async (since: number) => (await plugin().callLog({ since })).calls;
 export const callLogAllowed = async () => (inApp() ? (await plugin().callLogAllowed()).allowed : false);
+
+// ---------- reminders the phone shows by itself (lib/local-alerts.ts), through @capacitor/local-notifications
+
+type Perm = { display: "granted" | "denied" | "prompt" | "prompt-with-rationale" };
+type LocalNotifications = {
+  checkPermissions: () => Promise<Perm>;
+  requestPermissions: () => Promise<Perm>;
+  getPending: () => Promise<{ notifications: { id: number }[] }>;
+  cancel: (o: { notifications: { id: number }[] }) => Promise<void>;
+  schedule: (o: { notifications: { id: number; title: string; body: string; isExactNotification: boolean; schedule: { at: Date; allowWhileIdle: boolean } }[] }) => Promise<unknown>;
+};
+const notifications = () => (cap()?.Plugins as { LocalNotifications?: LocalNotifications } | undefined)?.LocalNotifications;
+
+/** Whether the phone may show My Equal's reminders. Asks only when ask is true. */
+export async function phoneRemindersAllowed(ask = false): Promise<boolean> {
+  const n = notifications();
+  if (!n) return false;
+  const p = ask ? await n.requestPermissions() : await n.checkPermissions();
+  return p.display === "granted";
+}
+
+/** Replace every reminder the phone has waiting with this plan. */
+export async function setPhoneReminders(plan: { id: number; at: number; title: string; body: string }[]): Promise<void> {
+  const n = notifications();
+  if (!n) return;
+  const pending = (await n.getPending()).notifications;
+  if (pending.length) await n.cancel({ notifications: pending.map((p) => ({ id: p.id })) });
+  // Not exact: Android may show them a few minutes late, which is fine for these. Exact alarms would need a
+  // permission Android 14 and later deny by default, and the plugin would open a settings page to ask for it.
+  if (plan.length) await n.schedule({ notifications: plan.map((a) => ({ id: a.id, title: a.title, body: a.body, isExactNotification: false, schedule: { at: new Date(a.at), allowWhileIdle: true } })) });
+}

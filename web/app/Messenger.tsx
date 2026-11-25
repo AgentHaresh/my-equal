@@ -14,7 +14,9 @@ import { ForwardSheet, RemindSheet, SendLaterSheet, ShareSheet } from "./messeng
 import { pickPrivate, toShared, type ShareItem } from "@/lib/share";
 import { callsToTouches } from "@/lib/phonecalls";
 import type { Touch } from "@/lib/touch";
-import { callLogAllowed, inApp, readCallLog } from "./native";
+import { callLogAllowed, inApp, phoneRemindersAllowed, readCallLog, setPhoneReminders } from "./native";
+import { planAlerts } from "@/lib/local-alerts";
+import { inTouch } from "@/lib/touch";
 import SettingsMenu from "./messenger/SettingsMenu";
 import ProfileSetup from "./messenger/ProfileSetup";
 import ChatList from "./messenger/ChatList";
@@ -203,6 +205,29 @@ export default function Messenger({ role }: Props) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- read again only when the people change
   }, [isMe, contactsKey]);
+
+  // Reminders the phone shows by itself, even with the app closed (Android app only). Planned again
+  // whenever what is known changes; the phone keeps only the newest plan.
+  const [phoneReminders, setPhoneRemindersOn] = useState<{ on: boolean; next: number | null; note: string | null }>({ on: false, next: null, note: null });
+  const alertPlan = useMemo(() => {
+    if (!snap || !isMe) return [];
+    return planAlerts({ contacts: snap.contacts, memories: snap.memories }, (id) => inTouch(snap, id).last, Date.now());
+  }, [snap, isMe]);
+  const planKey = alertPlan.map((a) => `${a.id}@${a.at}`).join(",");
+  useEffect(() => {
+    if (!inApp()) return;
+    void (async () => {
+      if (!(await phoneRemindersAllowed())) return;
+      await setPhoneReminders(alertPlan);
+      setPhoneRemindersOn({ on: true, next: alertPlan[0]?.at ?? null, note: null });
+    })().catch((e) => setPhoneRemindersOn((r) => ({ ...r, note: e instanceof Error ? e.message : "Could not set the reminders." })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- planKey stands for the plan
+  }, [planKey]);
+  async function turnOnPhoneReminders() {
+    if (!(await phoneRemindersAllowed(true))) return setPhoneRemindersOn((r) => ({ ...r, note: "Notifications are off for My Equal. Allow them in the phone's settings." }));
+    await setPhoneReminders(alertPlan);
+    setPhoneRemindersOn({ on: true, next: alertPlan[0]?.at ?? null, note: null });
+  }
 
   // Start the model once it is on and there is something private to read.
   const hasPrivate = Boolean(rawSnap?.messages.some((m) => m.enc));
@@ -1013,6 +1038,7 @@ export default function Messenger({ role }: Props) {
             modelSize={LOCAL_MODEL_SIZE}
             memory={memory}
             phoneCalls={inApp() ? { ...calls, read: () => void readPhoneCalls() } : undefined}
+            phoneReminders={inApp() ? { ...phoneReminders, count: alertPlan.length, turnOn: () => void turnOnPhoneReminders() } : undefined}
             setPrivateMode={async (on: boolean) => {
               const next = await api("/api/keys", "POST", { privateMode: on });
               if (next.contacts) setSnap(next);

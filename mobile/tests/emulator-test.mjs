@@ -24,6 +24,7 @@ adb("shell", "pm", "clear", APP);
 // The phone reaches the laptop's server as localhost (a secure origin, so the session cookie is kept).
 adb("reverse", "tcp:3217", "tcp:3217");
 adb("shell", "pm", "grant", APP, "android.permission.READ_CALL_LOG");
+adb("shell", "pm", "grant", APP, "android.permission.POST_NOTIFICATIONS");
 
 // The phone's call log: Ravi called for 5 minutes yesterday, Priya was missed, the dentist called.
 const now = Date.now();
@@ -49,7 +50,7 @@ await page.evaluate(() => fetch("/api/auth", { method: "POST", headers: { "Conte
 await page.reload();
 await page.getByLabel("Settings").waitFor();
 await wait(3000);
-await page.getByLabel("Settings").click();
+await page.getByLabel("Settings").dispatchEvent("click");
 const settings = await page.evaluate(() => document.body.innerText);
 const m = settings.match(/(\d+) calls in the last 90 days matched people here(; (\d+) numbers matched nobody)?/);
 check("the call log is read and matched on the phone", Boolean(m) && m[1] === "2" && m[3] === "1", m?.[0] ?? settings.slice(0, 200));
@@ -61,10 +62,38 @@ const touches = await page.evaluate(async () => {
 });
 check("the server never got the phone's calls", !touches.includes("ph-"));
 
+// Reminders the phone shows by itself: planned on the phone and handed to Android.
+await page.getByLabel("Settings").dispatchEvent("click");
+await page.getByRole("button", { name: /Reminders on this phone are on/ }).waitFor();
+const planned = Number((await page.evaluate(() => document.body.innerText)).match(/(\d+) reminders? in the next two weeks/)?.[1] ?? 0);
+const pending = await page.evaluate(async () => (await window.Capacitor.Plugins.LocalNotifications.getPending()).notifications.length);
+check("the next two weeks of reminders are planned on the phone and handed to Android", planned > 0 && pending === planned, `${planned} planned, ${pending} waiting in Android`);
+await page.getByLabel("Close settings").dispatchEvent("click");
+
+// One comes due with the app closed: it is shown by Android itself.
+const TITLE = `Time to talk to Amma (test ${Date.now() % 100000})`;
+await page.evaluate((title) => window.Capacitor.Plugins.LocalNotifications.schedule({ notifications: [{ id: 4242, title, body: "You wanted to be in touch every 3 days.", isExactNotification: false, schedule: { at: new Date(Date.now() + 15000), allowWhileIdle: true } }] }), TITLE);
+adb("shell", "input", "keyevent", "KEYCODE_HOME");
+await wait(2000);
+adb("shell", "am", "kill", APP); // the app's process is gone, as when the phone reclaims it
+await wait(2000);
+let shown = false;
+for (let i = 0; i < 20 && !shown; i++) {
+  await wait(2000);
+  shown = adb("shell", "dumpsys", "notification", "--noredact").includes(TITLE);
+}
+check("a reminder is shown by Android with the app closed", shown);
+adb("shell", "cmd", "statusbar", "expand-notifications");
+await wait(1500);
+
 const shot = path.join(process.env.TEMP ?? ".", "my-equal-emulator.png");
 adb("shell", "screencap", "-p", "/sdcard/shot.png");
 adb("pull", "/sdcard/shot.png", shot);
 console.log("   screenshot:", shot);
-await device.close();
+try {
+  await device.close();
+} catch {
+  // the web view went away with the app
+}
 console.log(results.every(Boolean) ? "\nALL PASSED" : `\n${results.filter((x) => !x).length} FAILED`);
 process.exit(results.every(Boolean) ? 0 : 1);
