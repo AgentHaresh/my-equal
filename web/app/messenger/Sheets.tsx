@@ -202,3 +202,62 @@ export function ShareSheet({ share, setShare, sendAsk }: ShareProps) {
     </div>
   );
 }
+
+type CallLinkProps = {
+  unmatched: { number: string; name: string | null; calls: number }[];
+  linked: { key: string; name: string; id: string }[];
+  people: { id: string; name: string }[];
+  link: (number: string, contactId: string | null) => void;
+  close: () => void;
+};
+
+/**
+ * Numbers in the phone's call log that matched nobody here: the person says who each one is, and from
+ * then on calls with that number count as being in touch with them. Kept on this phone only.
+ */
+export function CallLinkSheet({ unmatched, linked, people, link, close }: CallLinkProps) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-equal-ink/60 p-3 sm:items-center" onClick={close}>
+      <div role="dialog" aria-label="Match calls to people" className="flex max-h-[85vh] w-full max-w-md flex-col rounded-3xl bg-white p-5 text-equal-ink shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="font-display text-2xl text-equal-deep">Who is this?</div>
+        <p className="mt-1 text-sm text-equal-ink/80">Calls from these numbers in the last 90 days matched nobody here. Say who they are, and their calls will count as staying in touch. This stays on this phone.</p>
+        <ul className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto">
+          {unmatched.length === 0 && <li className="rounded-xl bg-blue-50 px-3 py-2 text-sm">Every number in your recent calls is matched.</li>}
+          {unmatched.map((u) => (
+            <li key={u.number} className="flex items-center gap-2 rounded-xl border border-blue-100 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold">{u.name ?? u.number}</span>
+                <span className="block text-[11px] text-equal-ink/60">
+                  {u.name ? `${u.number} · ` : ""}
+                  {u.calls} {u.calls === 1 ? "call" : "calls"}
+                </span>
+              </span>
+              <select aria-label={`Who is ${u.name ?? u.number}`} defaultValue="" onChange={(e) => e.target.value && link(u.number, e.target.value)} className="max-w-[45%] rounded-full border border-blue-200 px-2 py-1 text-xs">
+                <option value="">Who is it?</option>
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </li>
+          ))}
+          {linked.length > 0 && <li className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-equal-ink/50">Matched by you</li>}
+          {linked.map((l) => (
+            <li key={l.key} className="flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">
+                …{l.key.slice(-4)} is <b>{l.name}</b>
+              </span>
+              <button onClick={() => link(l.key, null)} className="text-xs text-equal-sky underline">
+                Undo
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button onClick={close} className="mt-3 w-full rounded-full bg-equal-ink py-2 text-sm font-semibold text-white">
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}

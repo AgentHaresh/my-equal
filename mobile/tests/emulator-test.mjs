@@ -54,13 +54,24 @@ await page.getByLabel("Settings").dispatchEvent("click");
 const settings = await page.evaluate(() => document.body.innerText);
 const m = settings.match(/(\d+) calls in the last 90 days matched people here(; (\d+) numbers matched nobody)?/);
 check("the call log is read and matched on the phone", Boolean(m) && m[1] === "2" && m[3] === "1", m?.[0] ?? settings.slice(0, 200));
+
+// The number that matched nobody: the person says it is Kiran, and its call now counts.
+await page.getByRole("button", { name: "Say who this number is" }).dispatchEvent("click");
+const sheet = page.getByRole("dialog", { name: "Match calls to people" });
+await sheet.getByLabel("Who is Dentist").selectOption({ label: "Kiran" });
+await sheet.getByText("is Kiran").waitFor();
+await sheet.getByRole("button", { name: "Done" }).dispatchEvent("click");
+const after = (await page.evaluate(() => document.body.innerText)).match(/(\d+) calls in the last 90 days matched people here(; (\d+) numbers matched nobody)?/);
+check("a number linked by hand counts for that person", after?.[1] === "3" && !after?.[3], after?.[0]);
+const kept = await page.evaluate(() => localStorage.getItem("equal-call-links") ?? "");
+check("the link is kept on the phone", kept.includes("9811111111"));
 await page.getByLabel("Close settings").dispatchEvent("click");
 
 const touches = await page.evaluate(async () => {
   const s = await (await fetch("/api/state")).json();
   return JSON.stringify(s.touches ?? []);
 });
-check("the server never got the phone's calls", !touches.includes("ph-"));
+check("the server never got the phone's calls or links", !touches.includes("ph-") && !touches.includes("9811111111"));
 
 // Reminders the phone shows by itself: planned on the phone and handed to Android.
 await page.getByLabel("Settings").dispatchEvent("click");

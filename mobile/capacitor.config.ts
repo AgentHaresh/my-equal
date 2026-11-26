@@ -16,6 +16,10 @@ const config: CapacitorConfig = {
     cleartext: url.startsWith("http://"), // only for a local test server
     errorPath: "offline.html",
   },
+  plugins: {
+    // Reminders the phone shows by itself (web/lib/local-alerts.ts): My Equal's four dots, in its lime.
+    LocalNotifications: { smallIcon: "ic_stat_equal", iconColor: "#CEF82C" },
+  },
   android: {
     allowMixedContent: false,
     webContentsDebuggingEnabled: process.env.EQUAL_DEBUG === "1",

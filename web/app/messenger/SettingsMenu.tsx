@@ -29,7 +29,7 @@ type Props = {
   modelSize: string;
   memory: MemoryControls;
   /** Set only inside the Android app. */
-  phoneCalls?: { allowed: boolean; matched: number; unmatched: number; note: string | null; read: () => void };
+  phoneCalls?: { allowed: boolean; matched: number; unmatched: number; note: string | null; read: () => void; link: () => void };
   phoneReminders?: { on: boolean; next: number | null; count: number; note: string | null; turnOn: () => void };
 };
 
@@ -137,6 +137,11 @@ export default function SettingsMenu({ settingsOpen, setSettingsOpen, checkPush,
                       ? `${phoneCalls.matched} calls in the last 90 days matched people here${phoneCalls.unmatched ? `; ${phoneCalls.unmatched} numbers matched nobody` : ""}. They stay on this phone.`
                       : "So Equal knows when you last spoke to the people who matter. The call log stays on this phone; the server never sees it.")}
                 </p>
+                {phoneCalls.allowed && (
+                  <button onClick={phoneCalls.link} className="mt-1 w-full text-center text-[11px] font-semibold text-equal-sky underline">
+                    {phoneCalls.unmatched ? `Say who ${phoneCalls.unmatched === 1 ? "this number is" : `these ${phoneCalls.unmatched} numbers are`}` : "Numbers you matched by hand"}
+                  </button>
+                )}
               </>
             )}
             <a href="/api/export" download className="mt-2 block rounded-full border border-blue-200 px-3 py-1.5 text-center text-sm font-medium text-equal-sky">

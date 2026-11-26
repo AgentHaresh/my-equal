@@ -10,9 +10,9 @@ import { Wordmark } from "./messenger/parts";
 import { useCalls } from "./messenger/useCalls";
 import CallOverlay from "./messenger/CallOverlay";
 import ReminderCallOverlay from "./messenger/ReminderCallOverlay";
-import { ForwardSheet, RemindSheet, SendLaterSheet, ShareSheet } from "./messenger/Sheets";
+import { CallLinkSheet, ForwardSheet, RemindSheet, SendLaterSheet, ShareSheet } from "./messenger/Sheets";
 import { pickPrivate, toShared, type ShareItem } from "@/lib/share";
-import { callsToTouches } from "@/lib/phonecalls";
+import { callsToTouches, numberKey, type PhoneCall } from "@/lib/phonecalls";
 import type { Touch } from "@/lib/touch";
 import { callLogAllowed, inApp, phoneRemindersAllowed, readCallLog, setPhoneReminders } from "./native";
 import { planAlerts } from "@/lib/local-alerts";
@@ -45,7 +45,21 @@ export default function Messenger({ role }: Props) {
   // What Equal read privately on this device, from encrypted chats. Added to the screen here and nowhere else.
   const [mind, setMind] = useState<Mind | null>(null);
   // In the Android app: calls from the phone's call log, matched to people here (lib/phonecalls.ts). Kept in memory only.
-  const [phoneTouches, setPhoneTouches] = useState<Touch[]>([]);
+  // The list is read fresh each time and kept in memory only; numbers the person linked to someone by hand
+  // are kept on this phone (localStorage), never on the server.
+  const [callList, setCallList] = useState<PhoneCall[] | null>(null);
+  const [callLinks, setCallLinks] = useState<Record<string, string>>(() => {
+    try {
+      return typeof window === "undefined" ? {} : JSON.parse(window.localStorage.getItem("equal-call-links") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const phoneMatch = useMemo(
+    () => (callList && plainSnap ? callsToTouches(callList, plainSnap.contacts.filter((c) => !c.owner), callLinks) : { touches: [] as Touch[], unmatched: [] }),
+    [callList, plainSnap, callLinks],
+  );
+  const phoneTouches = phoneMatch.touches;
   const snap = useMemo(() => {
     const learned = Boolean(mind && (mind.facts.length || Object.keys(mind.tones).length));
     if (!plainSnap || (!learned && !phoneTouches.length)) return plainSnap;
@@ -185,17 +199,29 @@ export default function Messenger({ role }: Props) {
   }
 
   // Phone calls (Android app only). Read when the app opens, if the person has allowed it, and on request.
-  const [calls, setCalls] = useState<{ allowed: boolean; matched: number; unmatched: number; note: string | null }>({ allowed: false, matched: 0, unmatched: 0, note: null });
+  const [callNote, setCallNote] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
+  const calls = { allowed: callList !== null, matched: phoneMatch.touches.length, unmatched: phoneMatch.unmatched.length, note: callNote };
   const contactsKey = plainSnap?.contacts.map((c) => c.id + c.name).join("|") ?? "";
   async function readPhoneCalls() {
-    if (!plainSnap) return;
     try {
-      const list = await readCallLog(Date.now() - 90 * 86400000);
-      const { touches, unmatched } = callsToTouches(list, plainSnap.contacts.filter((c) => !c.owner));
-      setPhoneTouches(touches);
-      setCalls({ allowed: true, matched: touches.length, unmatched: unmatched.length, note: null });
+      setCallList(await readCallLog(Date.now() - 90 * 86400000));
+      setCallNote(null);
     } catch (e) {
-      setCalls((c) => ({ ...c, note: e instanceof Error ? e.message : "Could not read the calls." }));
+      setCallNote(e instanceof Error ? e.message : "Could not read the calls.");
+    }
+  }
+  /** This number is that person (or, with no person, forget the link). */
+  function linkNumber(number: string, contactId: string | null) {
+    const key = numberKey(number);
+    const next = { ...callLinks };
+    if (contactId) next[key] = contactId;
+    else delete next[key];
+    setCallLinks(next);
+    try {
+      window.localStorage.setItem("equal-call-links", JSON.stringify(next));
+    } catch {
+      /* kept for this session only */
     }
   }
   useEffect(() => {
@@ -203,7 +229,6 @@ export default function Messenger({ role }: Props) {
     void callLogAllowed().then((ok) => {
       if (ok) void readPhoneCalls();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- read again only when the people change
   }, [isMe, contactsKey]);
 
   // Reminders the phone shows by itself, even with the app closed (Android app only). Planned again
@@ -1024,6 +1049,18 @@ export default function Messenger({ role }: Props) {
       {ringing && !callUi && <ReminderCallOverlay {...{ ringing, answerReminder, closeReminder }} />}
       {forwarding && <ForwardSheet {...{ forwarding, setForwarding, ordered, forwardTo }} />}
       {share && <ShareSheet {...{ share, setShare, sendAsk }} />}
+      {linking && snap && (
+        <CallLinkSheet
+          unmatched={phoneMatch.unmatched}
+          linked={Object.entries(callLinks).flatMap(([key, id]) => {
+            const c = snap.contacts.find((x) => x.id === id);
+            return c ? [{ key, name: c.name, id }] : [];
+          })}
+          people={snap.contacts.filter((c) => !c.owner && !c.unknown && c.id !== "self").map((c) => ({ id: c.id, name: c.name }))}
+          link={linkNumber}
+          close={() => setLinking(false)}
+        />
+      )}
       {laterOpen && <SendLaterSheet {...{ setLaterOpen, draft, sendLater, laterWhen, setLaterWhen, laterError }} />}
       {remindFor && <RemindSheet {...{ remindFor, setRemindFor, remindMsg, remindCall, setRemindCall, setReminder, remindBusy, remindWhen, setRemindWhen }} />}
       <header className={`safe-top items-center justify-between px-4 py-2.5 md:flex md:px-2 md:py-0 ${isMe && pane === "chat" ? "hidden" : "flex"}`}>
@@ -1037,7 +1074,7 @@ export default function Messenger({ role }: Props) {
             model={model}
             modelSize={LOCAL_MODEL_SIZE}
             memory={memory}
-            phoneCalls={inApp() ? { ...calls, read: () => void readPhoneCalls() } : undefined}
+            phoneCalls={inApp() ? { ...calls, read: () => void readPhoneCalls(), link: () => setLinking(true) } : undefined}
             phoneReminders={inApp() ? { ...phoneReminders, count: alertPlan.length, turnOn: () => void turnOnPhoneReminders() } : undefined}
             setPrivateMode={async (on: boolean) => {
               const next = await api("/api/keys", "POST", { privateMode: on });
