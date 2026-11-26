@@ -1,1 +1,3 @@
 node_modules/
+# Firebase config for the Android app. Fetch it again with the Firebase API or console (project my-equal-ab).
+android/app/google-services.json

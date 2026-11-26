@@ -14,7 +14,7 @@ import { CallLinkSheet, ForwardSheet, RemindSheet, SendLaterSheet, ShareSheet } 
 import { pickPrivate, toShared, type ShareItem } from "@/lib/share";
 import { callsToTouches, numberKey, type PhoneCall } from "@/lib/phonecalls";
 import type { Touch } from "@/lib/touch";
-import { callLogAllowed, inApp, phoneRemindersAllowed, readCallLog, setPhoneReminders } from "./native";
+import { callLogAllowed, inApp, phoneRemindersAllowed, readCallLog, registerPhonePush, setPhoneReminders } from "./native";
 import { planAlerts } from "@/lib/local-alerts";
 import { inTouch } from "@/lib/touch";
 import SettingsMenu from "./messenger/SettingsMenu";
@@ -243,6 +243,7 @@ export default function Messenger({ role }: Props) {
     if (!inApp()) return;
     void (async () => {
       if (!(await phoneRemindersAllowed())) return;
+      void registerPhonePush(); // messages from the server while the app is closed
       await setPhoneReminders(alertPlan);
       setPhoneRemindersOn({ on: true, next: alertPlan[0]?.at ?? null, note: null });
     })().catch((e) => setPhoneRemindersOn((r) => ({ ...r, note: e instanceof Error ? e.message : "Could not set the reminders." })));
@@ -250,6 +251,7 @@ export default function Messenger({ role }: Props) {
   }, [planKey]);
   async function turnOnPhoneReminders() {
     if (!(await phoneRemindersAllowed(true))) return setPhoneRemindersOn((r) => ({ ...r, note: "Notifications are off for My Equal. Allow them in the phone's settings." }));
+    void registerPhonePush();
     await setPhoneReminders(alertPlan);
     setPhoneRemindersOn({ on: true, next: alertPlan[0]?.at ?? null, note: null });
   }

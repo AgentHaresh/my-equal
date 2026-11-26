@@ -57,3 +57,37 @@ export async function setPhoneReminders(plan: { id: number; at: number; title: s
   // permission Android 14 and later deny by default, and the plugin would open a settings page to ask for it.
   if (plan.length) await n.schedule({ notifications: plan.map((a) => ({ id: a.id, title: a.title, body: a.body, isExactNotification: false, schedule: { at: new Date(a.at), allowWhileIdle: true } })) });
 }
+
+// ---------- messages while the app is closed: Firebase Cloud Messaging (@capacitor/push-notifications, lib/fcm.ts)
+
+type PushPlugin = {
+  checkPermissions: () => Promise<{ receive: string }>;
+  register: () => Promise<void>;
+  addListener: (event: string, fn: (x: { value?: string; error?: string }) => void) => Promise<{ remove: () => void }>;
+};
+const pushPlugin = () => (cap()?.Plugins as { PushNotifications?: PushPlugin } | undefined)?.PushNotifications;
+let pushToken: Promise<string | null> | null = null;
+
+/**
+ * Register this phone for messages from the server and give the server its token. Only once
+ * notifications are allowed (the reminders ask for that). Resolves to the token, or null.
+ */
+export function registerPhonePush(): Promise<string | null> {
+  const p = pushPlugin();
+  if (!p) return Promise.resolve(null);
+  pushToken ??= (async () => {
+    if ((await p.checkPermissions()).receive !== "granted") return null;
+    const token = await new Promise<string | null>((resolve) => {
+      void p.addListener("registration", (x) => resolve(x.value ?? null));
+      void p.addListener("registrationError", () => resolve(null));
+      void p.register().catch(() => resolve(null));
+      setTimeout(() => resolve(null), 20000);
+    });
+    if (token) await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fcm: token }) });
+    return token;
+  })();
+  void pushToken.then((t) => {
+    if (!t) pushToken = null; // try again next time
+  });
+  return pushToken;
+}

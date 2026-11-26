@@ -3,6 +3,7 @@ import path from "path";
 import * as webpush from "web-push";
 import { root, save } from "./store";
 import { count } from "./metrics";
+import { notifyFcm } from "./fcm";
 
 /**
  * Notifications that reach a phone or computer while My Equal is closed: a new message, an
@@ -61,8 +62,9 @@ export function unsubscribe(userId: string, endpoint: string) {
 
 export const subscribed = (userId: string) => (subs()[userId]?.length ?? 0) > 0;
 
-/** Send a notification to every browser this person has turned notifications on in. Never throws. */
+/** Send a notification to every browser and Android phone this person has turned notifications on in. Never throws. */
 export function notify(userId: string, note: Note) {
+  void notifyFcm(userId, note).catch(() => {}); // the Android app (lib/fcm.ts)
   const list = subs()[userId];
   if (!list?.length) return;
   keys();
